@@ -1,0 +1,46 @@
+{
+  "name": "nfl-playoff-predictor",
+  "version": "1.0.0",
+  "description": "Interactive NFL playoff predictor allowing users to manipulate game outcomes",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "pull-data": "node scripts/pull-nfl-data.js",
+    "pull-data-full": "node scripts/pull-nfl-data.js --include-rosters",
+    "test-workflow": "node scripts/test-complete-workflow.js",
+    "test-glpk": "node scripts/test-glpk.js",
+    "test-async-glpk": "node scripts/test-async-glpk.js",
+    "test-nfl-ilp": "node scripts/test-nfl-ilp.js",
+    "test-glpk-solver": "node scripts/test-glpk-solver.js"
+  },
+  "keywords": [
+    "nfl",
+    "playoff",
+    "predictor",
+    "football",
+    "simulation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "glpk.js": "^4.0.2",
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "node-fetch": "^2.6.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.3.0"
+  }
+}

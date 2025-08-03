@@ -1,0 +1,3 @@
+This directory will contain team logo images.
+For now, the app uses placeholder divs with team abbreviations.
+In a production app, you would add actual team logo images here. 
