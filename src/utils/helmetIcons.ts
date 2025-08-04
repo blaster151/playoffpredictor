@@ -1,10 +1,84 @@
 // Utility functions for helmet and logo paths
 export function getTeamHelmetPath(teamId: string): string {
-  return `/icons/${teamId.toLowerCase()}-helmet.png`;
+  // Map team IDs to their abbreviations for helmet paths
+  const teamAbbreviations: { [key: string]: string } = {
+    'ravens': 'bal',
+    'browns': 'cle',
+    'bengals': 'cin',
+    'steelers': 'pit',
+    'texans': 'hou',
+    'colts': 'ind',
+    'jaguars': 'jax',
+    'titans': 'ten',
+    'bills': 'buf',
+    'dolphins': 'mia',
+    'jets': 'nyj',
+    'patriots': 'ne',
+    'chiefs': 'kc',
+    'raiders': 'lv',
+    'chargers': 'lac',
+    'broncos': 'den',
+    'bears': 'chi',
+    'lions': 'det',
+    'packers': 'gb',
+    'vikings': 'min',
+    'falcons': 'atl',
+    'panthers': 'car',
+    'saints': 'no',
+    'buccaneers': 'tb',
+    'cowboys': 'dal',
+    'eagles': 'phi',
+    'giants': 'nyg',
+    'commanders': 'was',
+    'cardinals': 'ari',
+    'rams': 'lar',
+    '49ers': 'sf',
+    'seahawks': 'sea'
+  };
+  
+  const abbreviation = teamAbbreviations[teamId.toLowerCase()] || teamId.toLowerCase();
+  return `/icons/${abbreviation}-helmet.png`;
 }
 
 export function getTeamHelmetFlippedPath(teamId: string): string {
-  return `/icons/${teamId.toLowerCase()}-helmet-flipped.png`;
+  // Map team IDs to their abbreviations for helmet paths
+  const teamAbbreviations: { [key: string]: string } = {
+    'ravens': 'bal',
+    'browns': 'cle',
+    'bengals': 'cin',
+    'steelers': 'pit',
+    'texans': 'hou',
+    'colts': 'ind',
+    'jaguars': 'jax',
+    'titans': 'ten',
+    'bills': 'buf',
+    'dolphins': 'mia',
+    'jets': 'nyj',
+    'patriots': 'ne',
+    'chiefs': 'kc',
+    'raiders': 'lv',
+    'chargers': 'lac',
+    'broncos': 'den',
+    'bears': 'chi',
+    'lions': 'det',
+    'packers': 'gb',
+    'vikings': 'min',
+    'falcons': 'atl',
+    'panthers': 'car',
+    'saints': 'no',
+    'buccaneers': 'tb',
+    'cowboys': 'dal',
+    'eagles': 'phi',
+    'giants': 'nyg',
+    'commanders': 'was',
+    'cardinals': 'ari',
+    'rams': 'lar',
+    '49ers': 'sf',
+    'seahawks': 'sea'
+  };
+  
+  const abbreviation = teamAbbreviations[teamId.toLowerCase()] || teamId.toLowerCase();
+  return `/icons/${abbreviation}-helmet-flipped.png`;
 }
 
 export function getConferenceHelmetPath(conference: 'AFC' | 'NFC'): string {

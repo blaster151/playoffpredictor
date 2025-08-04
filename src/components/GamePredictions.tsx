@@ -131,14 +131,15 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
                   <div className={`flex items-center space-x-2 ${awayWins ? 'font-bold text-green-600' : ''}`}>
                     <div 
                       className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:scale-110 transition-transform duration-200 overflow-hidden"
-                      style={getTeamBadgeStyle(awayTeam?.id || '', awayWins)}
+                      style={getTeamBadgeStyle(awayTeam?.id || '', false)}
                       onClick={() => handleAutoWin(game.id, game.awayTeam, game.homeTeam, game.awayTeam)}
                       title={`Click to give ${awayTeam?.abbreviation} an auto-win`}
                     >
                       <img 
                         src={getTeamDisplay(awayTeam?.id || '', false).content}
                         alt={awayTeam?.abbreviation || 'Team'}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain mix-blend-multiply"
+                        style={{ imageRendering: 'crisp-edges' }}
                         onError={(e) => {
                           // Fallback to text if image fails to load
                           const target = e.target as HTMLImageElement;
@@ -167,14 +168,15 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
                     />
                     <div 
                       className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:scale-110 transition-transform duration-200 overflow-hidden"
-                      style={getTeamBadgeStyle(homeTeam?.id || '', homeWins)}
+                      style={getTeamBadgeStyle(homeTeam?.id || '', false)}
                       onClick={() => handleAutoWin(game.id, game.homeTeam, game.homeTeam, game.awayTeam)}
                       title={`Click to give ${homeTeam?.abbreviation} an auto-win`}
                     >
                       <img 
                         src={getTeamDisplay(homeTeam?.id || '', true).content}
                         alt={homeTeam?.abbreviation || 'Team'}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain mix-blend-multiply"
+                        style={{ imageRendering: 'crisp-edges' }}
                         onError={(e) => {
                           // Fallback to text if image fails to load
                           const target = e.target as HTMLImageElement;

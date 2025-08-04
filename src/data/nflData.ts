@@ -46,25 +46,24 @@ export const teams: Team[] = [
 
 export const week1Games: Game[] = [
   // AFC Games
-  { id: '1', week: 1, awayTeam: 'texans', homeTeam: 'chargers', day: 'Fri', date: '2025-09-05', isPlayed: false },
-  { id: '2', week: 1, awayTeam: 'jets', homeTeam: 'dolphins', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '3', week: 1, awayTeam: 'bengals', homeTeam: 'browns', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '4', week: 1, awayTeam: 'raiders', homeTeam: 'patriots', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '5', week: 1, awayTeam: 'titans', homeTeam: 'colts', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '6', week: 1, awayTeam: 'jaguars', homeTeam: 'bills', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  
-  // A vs N Games
-  { id: '7', week: 1, awayTeam: 'panthers', homeTeam: 'jaguars', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '8', week: 1, awayTeam: 'texans', homeTeam: 'chargers', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '1', week: 1, awayTeam: 'ravens', homeTeam: 'bengals', day: 'Thu', date: '2025-09-04', isPlayed: false },
+  { id: '2', week: 1, awayTeam: 'browns', homeTeam: 'steelers', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '3', week: 1, awayTeam: 'texans', homeTeam: 'colts', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '4', week: 1, awayTeam: 'jaguars', homeTeam: 'titans', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '5', week: 1, awayTeam: 'bills', homeTeam: 'dolphins', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '6', week: 1, awayTeam: 'jets', homeTeam: 'patriots', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '7', week: 1, awayTeam: 'chiefs', homeTeam: 'raiders', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '8', week: 1, awayTeam: 'chargers', homeTeam: 'broncos', day: 'Sun', date: '2025-09-07', isPlayed: false },
   
   // NFC Games
-  { id: '9', week: 1, awayTeam: 'cowboys', homeTeam: 'eagles', day: 'Thu', date: '2025-09-04', isPlayed: false },
-  { id: '10', week: 1, awayTeam: 'cardinals', homeTeam: 'saints', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '11', week: 1, awayTeam: 'buccaneers', homeTeam: 'falcons', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '12', week: 1, awayTeam: 'giants', homeTeam: 'commanders', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '13', week: 1, awayTeam: '49ers', homeTeam: 'seahawks', day: 'Sun', date: '2025-09-07', isPlayed: false },
-  { id: '14', week: 1, awayTeam: 'lions', homeTeam: 'packers', day: 'Mon', date: '2025-09-08', isPlayed: false },
-  { id: '15', week: 1, awayTeam: 'vikings', homeTeam: 'bears', day: 'Mon', date: '2025-09-08', isPlayed: false },
+  { id: '9', week: 1, awayTeam: 'bears', homeTeam: 'lions', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '10', week: 1, awayTeam: 'packers', homeTeam: 'vikings', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '11', week: 1, awayTeam: 'falcons', homeTeam: 'panthers', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '12', week: 1, awayTeam: 'saints', homeTeam: 'buccaneers', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '13', week: 1, awayTeam: 'cowboys', homeTeam: 'eagles', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '14', week: 1, awayTeam: 'giants', homeTeam: 'commanders', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '15', week: 1, awayTeam: 'cardinals', homeTeam: 'rams', day: 'Sun', date: '2025-09-07', isPlayed: false },
+  { id: '16', week: 1, awayTeam: '49ers', homeTeam: 'seahawks', day: 'Mon', date: '2025-09-08', isPlayed: false },
 ];
 
 export const week1: Week = {

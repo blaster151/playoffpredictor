@@ -8,6 +8,8 @@ import StandingsPanel from '../components/StandingsPanel';
 import GamePredictions from '../components/GamePredictions';
 import NavigationBar from '../components/NavigationBar';
 import ScheduleManager from '../components/ScheduleManager';
+import WelcomeModal from '../components/WelcomeModal';
+import AutoSaveIndicator from '../components/AutoSaveIndicator';
 import { useNFLData } from '../hooks/useNFLData';
 import { SavedSchedule, ScheduleSaver } from '../utils/scheduleSaver';
 import { generateMatchups, createScheduleConfig } from '../utils/scheduleGenerator';
@@ -15,7 +17,7 @@ import { initializeGLPK, createGLPKScheduleSolver } from '../utils/glpkSolver';
 import { dataManager } from '../utils/dataManager';
 import DataStatus from '../components/DataStatus';
 import { GameResolver } from '../utils/gameResolver';
-import { generatePlayoffBrackets, getPlayoffWeekName, isPlayoffWeek, getEliminatedTeams } from '../utils/playoffBracketGenerator';
+import { generatePlayoffBrackets, getPlayoffWeekName, isPlayoffWeek, getEliminatedTeams, isRegularSeasonComplete, getPlayoffStatusMessage } from '../utils/playoffBracketGenerator';
 
 export default function Home() {
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -23,6 +25,8 @@ export default function Home() {
   const [selectedSchedule, setSelectedSchedule] = useState<SavedSchedule | null>(null);
   // Removed mainViewMode state - always show standings view
   const [isGeneratingSchedule, setIsGeneratingSchedule] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showAutoSaveIndicator, setShowAutoSaveIndicator] = useState(false);
   
   // Use live NFL data with fallback to static data
   const { teams, games, loading, error, refreshData } = useNFLData({
@@ -45,10 +49,22 @@ export default function Home() {
       )[0];
       setSelectedSchedule(mostRecent);
       console.log(`📂 Loaded saved schedule: ${mostRecent.name} (${mostRecent.metadata.totalGames} games)`);
+    } else {
+      // Show welcome modal for first-time users
+      setShowWelcomeModal(true);
     }
+
+    // Listen for auto-save events
+    const handleAutoSave = (data: any) => {
+      console.log('💾 Auto-save triggered:', data);
+      setShowAutoSaveIndicator(true);
+    };
+
+    dataManager.on('autoSave', handleAutoSave);
     
     // Cleanup on unmount
     return () => {
+      dataManager.off('autoSave', handleAutoSave);
       dataManager.destroy();
     };
   }, []);
@@ -167,7 +183,7 @@ export default function Home() {
     // Check if this is a playoff week
     if (isPlayoffWeek(currentWeek)) {
       // Generate playoff brackets based on current standings
-      const playoffBrackets = generatePlayoffBrackets(standings);
+      const playoffBrackets = generatePlayoffBrackets(standings, currentWeek);
       
       switch (currentWeek) {
         case 19:
@@ -323,12 +339,13 @@ export default function Home() {
       
       const newSchedule = await ScheduleSaver.saveSchedule(fullScheduleGames, currentTeams, {
         name: `Full NFL Schedule - ${new Date().toLocaleString()}`,
-        description: 'Generated using GLPK solver with proper constraints',
+        description: 'Generated using GLPK solver with proper NFL constraints and bye week logic',
         season: 2025,
         generatedBy: 'GLPK',
       });
       
       setSelectedSchedule(newSchedule);
+      setShowWelcomeModal(false); // Close welcome modal after successful generation
       console.log('✅ Full NFL schedule generated successfully with GLPK!');
       
       // Navigate to Week 1 if user is not already there
@@ -342,6 +359,56 @@ export default function Home() {
       alert('Schedule generation failed. Please try again.');
     } finally {
       setIsGeneratingSchedule(false);
+    }
+  };
+
+  const handleWelcomeModalClose = () => {
+    setShowWelcomeModal(false);
+  };
+
+  const generateFullNFLScheduleWithGLPK = async (teams: Team[]) => {
+    console.log('🧮 Initializing GLPK solver...');
+    
+    try {
+      // Initialize GLPK
+      const glpk = await initializeGLPK();
+      console.log('✅ GLPK initialized successfully');
+      
+      // Create GLPK solver with proper NFL constraints
+      const solver = createGLPKScheduleSolver(teams, 18, {
+        maxGamesPerWeek: 16,
+        maxTeamsOnBye: 6,
+        byeWeekRange: { start: 5, end: 14 },
+        noByeWeek: 13
+      });
+      
+      console.log('🔧 Solving with GLPK constraints...');
+      const solution = solver.solve();
+      
+      if (solution.status === 'optimal') {
+        console.log(`✅ GLPK solved successfully! ${solution.games.length} games scheduled`);
+        console.log(`📊 Solve time: ${solution.solveTime}ms`);
+        console.log(`📊 Objective value: ${solution.objectiveValue}`);
+        console.log(`📊 Constraints satisfied:`, solution.constraints.map(c => `${c.description} (weight: ${c.weight})`));
+        
+        // Convert GLPK solution to our format
+        const games = solution.games.map(game => ({
+          week: game.week,
+          home: game.homeTeam,
+          away: game.awayTeam,
+        }));
+        
+        return games;
+      } else {
+        console.warn(`⚠️ GLPK solver returned status: ${solution.status}`);
+        console.log('🔄 Falling back to manual distribution...');
+        return generateFullNFLSchedule(teams);
+      }
+      
+    } catch (error) {
+      console.error('❌ GLPK solver failed:', error);
+      console.log('🔄 Falling back to manual distribution...');
+      return generateFullNFLSchedule(teams);
     }
   };
 
@@ -510,60 +577,7 @@ export default function Home() {
     return games;
   };
 
-  const generateFullNFLScheduleWithGLPK = async (teams: Team[]) => {
-    console.log('🧮 Initializing GLPK solver...');
-    
-    try {
-      // Initialize GLPK
-      const glpk = await initializeGLPK();
-      console.log('✅ GLPK initialized successfully');
-      
-      // Create mock prior year standings (all teams tied for 1st in their division)
-      const priorYearStandings: { [teamId: string]: number } = {};
-      teams.forEach(team => {
-        priorYearStandings[team.id] = 1;
-      });
-      
-      // Create schedule config for 2025 season
-      const config = createScheduleConfig(teams, 2025, priorYearStandings);
-      
-      // Generate all matchups
-      const matchups = generateMatchups(config);
-      console.log(`🎯 Generated ${matchups.length} matchups for GLPK solver`);
-      
-      // Create GLPK solver with proper constraints
-      const solver = await createGLPKScheduleSolver(matchups, teams, 18, {
-        maxGamesPerWeek: 16, // NFL typically has 16 games per week (32 teams, 16 games)
-        byeWeekDistribution: 'balanced',
-      });
-      
-      console.log('🔧 Solving with GLPK constraints...');
-      const solution = solver.solve();
-      
-      if (solution.status === 'optimal') {
-        console.log(`✅ GLPK solved successfully! ${solution.games.length} games scheduled`);
-        console.log(`📊 Solve time: ${solution.solveTime}ms`);
-        
-        // Convert GLPK solution to our format
-        const games = solution.games.map(game => ({
-          week: game.week,
-          home: game.homeTeam,
-          away: game.awayTeam,
-        }));
-        
-        return games;
-      } else {
-        console.warn(`⚠️ GLPK solver returned status: ${solution.status}`);
-        console.log('🔄 Falling back to manual distribution...');
-        return generateFullNFLSchedule(teams);
-      }
-      
-    } catch (error) {
-      console.error('❌ GLPK solver failed:', error);
-      console.log('🔄 Falling back to manual distribution...');
-      return generateFullNFLSchedule(teams);
-    }
-  };
+
 
   const generateDivisionSchedule = (teams: Team[]) => {
     const games: Array<{ week: number; home: string; away: string }> = [];
@@ -673,7 +687,7 @@ export default function Home() {
               </div>
             </div>
             <div className="text-xl font-semibold text-gray-800 bg-white py-2 px-4 rounded-lg shadow-sm inline-block">
-              Week {currentWeek}: Sep 4th - Sep 8th
+              {isPlayoffWeek(currentWeek) ? getPlayoffWeekName(currentWeek) : `Week ${currentWeek}`}: Sep 4th - Sep 8th
             </div>
             {selectedSchedule && (
               <div className="text-sm text-blue-600 mt-2">
@@ -688,6 +702,12 @@ export default function Home() {
             {error && (
               <div className="text-sm text-red-600 mt-2">
                 ⚠️ {error} (using fallback data)
+              </div>
+            )}
+            {/* Playoff status message */}
+            {isPlayoffWeek(currentWeek) && (
+              <div className="text-sm text-purple-600 mt-2 font-medium">
+                🏆 {getPlayoffStatusMessage(currentWeek)}
               </div>
             )}
             <div className="mt-4 flex justify-center">
@@ -725,7 +745,7 @@ export default function Home() {
               onViewModeChange={setStandingsViewMode}
               eliminatedTeams={(() => {
                 if (isPlayoffWeek(currentWeek)) {
-                  const playoffBrackets = generatePlayoffBrackets(standings);
+                  const playoffBrackets = generatePlayoffBrackets(standings, currentWeek);
                   const allPlayoffGames = [
                     ...playoffBrackets.wildCard,
                     ...playoffBrackets.divisional,
@@ -756,7 +776,7 @@ export default function Home() {
               onViewModeChange={setStandingsViewMode}
               eliminatedTeams={(() => {
                 if (isPlayoffWeek(currentWeek)) {
-                  const playoffBrackets = generatePlayoffBrackets(standings);
+                  const playoffBrackets = generatePlayoffBrackets(standings, currentWeek);
                   const allPlayoffGames = [
                     ...playoffBrackets.wildCard,
                     ...playoffBrackets.divisional,
@@ -785,7 +805,7 @@ export default function Home() {
               }
               
               const teamsPlaying = new Set();
-              weekGames.forEach(game => {
+              weekGames.forEach((game: any) => {
                 teamsPlaying.add(game.homeTeam);
                 teamsPlaying.add(game.awayTeam);
               });
@@ -826,6 +846,20 @@ export default function Home() {
       
       {/* Data Protection Status */}
       <DataStatus />
+      
+      {/* Welcome Modal */}
+      <WelcomeModal
+        isOpen={showWelcomeModal}
+        onClose={handleWelcomeModalClose}
+        onGenerateSchedule={handleRegenerateSchedule}
+        isGenerating={isGeneratingSchedule}
+      />
+
+      {/* Auto-Save Indicator */}
+      <AutoSaveIndicator
+        isVisible={showAutoSaveIndicator}
+        onHide={() => setShowAutoSaveIndicator(false)}
+      />
     </>
   );
 } 

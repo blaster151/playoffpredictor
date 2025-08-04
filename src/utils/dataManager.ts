@@ -37,6 +37,7 @@ class DataManager {
   private consecutiveErrors = 0;
   private lastSaveTime = 0;
   private isInitialized = false;
+  private eventListeners: Map<string, Function[]> = new Map();
 
   static getInstance(): DataManager {
     if (!DataManager.instance) {
@@ -76,7 +77,17 @@ class DataManager {
       // Set new timeout
       this.saveTimeout = setTimeout(async () => {
         try {
+          // Check if data has actually changed
+          const currentData = this.loadData(key);
+          const hasChanged = JSON.stringify(currentData) !== JSON.stringify(data);
+          
           const success = await this.saveData(key, data, operation);
+          
+          // Only emit auto-save event if data actually changed
+          if (success && hasChanged) {
+            this.emit('autoSave', { operation, key, timestamp: Date.now(), hasChanged: true });
+          }
+          
           resolve(success);
         } catch (error) {
           console.error('Debounced save failed:', error);
@@ -422,6 +433,39 @@ class DataManager {
     } catch (error) {
       console.error('Failed to load last save time:', error);
       this.lastSaveTime = 0;
+    }
+  }
+
+  /**
+   * Event system methods
+   */
+  on(event: string, callback: Function): void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, []);
+    }
+    this.eventListeners.get(event)!.push(callback);
+  }
+
+  off(event: string, callback: Function): void {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      const index = listeners.indexOf(callback);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    }
+  }
+
+  emit(event: string, data?: any): void {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error('Event callback error:', error);
+        }
+      });
     }
   }
 
