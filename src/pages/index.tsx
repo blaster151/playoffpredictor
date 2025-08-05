@@ -13,7 +13,7 @@ import AutoSaveIndicator from '../components/AutoSaveIndicator';
 import { useNFLData } from '../hooks/useNFLData';
 import { SavedSchedule, ScheduleSaver } from '../utils/scheduleSaver';
 import { generateMatchups, createScheduleConfig } from '../utils/scheduleGenerator';
-import { initializeGLPK, createGLPKScheduleSolver } from '../utils/glpkSolver';
+import { createScheduleSolver } from '../utils/scheduleConstraintSolver';
 import { dataManager } from '../utils/dataManager';
 import DataStatus from '../components/DataStatus';
 import { GameResolver } from '../utils/gameResolver';
@@ -27,6 +27,8 @@ export default function Home() {
   const [isGeneratingSchedule, setIsGeneratingSchedule] = useState(false);
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
   const [showAutoSaveIndicator, setShowAutoSaveIndicator] = useState(false);
+  const [resolvingGames, setResolvingGames] = useState<Set<string>>(new Set());
+  const [winnerAnimations, setWinnerAnimations] = useState<Set<string>>(new Set());
   
   // Use live NFL data with fallback to static data
   const { teams, games, loading, error, refreshData } = useNFLData({
@@ -242,7 +244,7 @@ export default function Home() {
     console.log('Viewing pools');
   };
 
-  const handleResolveUnresolvedGames = () => {
+  const handleResolveUnresolvedGames = async () => {
     if (!selectedSchedule) return;
 
     const currentWeekGames = selectedSchedule.weeks[currentWeek]?.games || [];
@@ -255,66 +257,117 @@ export default function Home() {
 
     console.log('🎲 Resolving unresolved games for Week', currentWeek);
     
-    // Resolve games based on current standings
-    const resolvedGames = GameResolver.resolveWeekGames(
-      currentWeekGames.map(game => ({
-        id: game.id,
-        homeTeam: game.homeTeam,
-        awayTeam: game.awayTeam,
-        homeScore: game.homeScore,
-        awayScore: game.awayScore,
-      })),
-      standings,
-      currentWeek
-    );
+    // Create a working copy of the schedule that we'll update incrementally
+    let workingSchedule = { ...selectedSchedule };
+    const currentTeams = teams.length > 0 ? teams : fallbackTeams;
 
-    // Update the schedule with resolved games
-    const updatedSchedule = { ...selectedSchedule };
-    
-    resolvedGames.forEach(resolution => {
-      // Find and update the game in the schedule
-      Object.values(updatedSchedule.weeks).forEach((week: any) => {
-        const gameIndex = week.games.findIndex((g: any) => g.id === resolution.gameId);
-        
-        if (gameIndex !== -1) {
-          const game = week.games[gameIndex];
-          game.homeScore = resolution.homeScore;
-          game.awayScore = resolution.awayScore;
-          game.isPlayed = true;
-          
-          console.log(`🎯 Resolved: ${game.awayTeam} ${resolution.awayScore} - ${resolution.homeScore} ${game.homeTeam} (confidence: ${Math.round(resolution.confidence * 100)}%)`);
-        }
-      });
+    // Get games in the same order they appear in the UI (AFC, Interconference, NFC)
+    const afcGames = currentWeekGames.filter(game => {
+      const awayTeam = teams.find(t => t.id === game.awayTeam);
+      const homeTeam = teams.find(t => t.id === game.homeTeam);
+      return awayTeam?.conference === 'AFC' && homeTeam?.conference === 'AFC';
     });
 
-    // Save the updated schedule
-    ScheduleSaver.updateGameScore(updatedSchedule.id, 'dummy', 0, 0).catch(error => {
+    const interconferenceGames = currentWeekGames.filter(game => {
+      const awayTeam = teams.find(t => t.id === game.awayTeam);
+      const homeTeam = teams.find(t => t.id === game.homeTeam);
+      return awayTeam?.conference !== homeTeam?.conference;
+    });
+
+    const nfcGames = currentWeekGames.filter(game => {
+      const awayTeam = teams.find(t => t.id === game.awayTeam);
+      const homeTeam = teams.find(t => t.id === game.homeTeam);
+      return awayTeam?.conference === 'NFC' && homeTeam?.conference === 'NFC';
+    });
+
+    // Combine in UI display order
+    const gamesInUIOrder = [...afcGames, ...interconferenceGames, ...nfcGames];
+
+    // Process games in the exact order they appear in the UI
+    for (let i = 0; i < gamesInUIOrder.length; i++) {
+      const currentGame = gamesInUIOrder[i];
+      
+      // Skip games that are already resolved (no delay needed)
+      if (currentGame.homeScore !== undefined && currentGame.awayScore !== undefined) {
+        continue;
+      }
+      
+      // Resolve this specific game
+      const resolution = GameResolver.resolveGame(
+        currentGame.homeTeam,
+        currentGame.awayTeam,
+        standings,
+        (currentWeek * 10000) + (i * 100) + (currentGame.homeTeam.charCodeAt(0) + currentGame.awayTeam.charCodeAt(0))
+      );
+      
+      // Start resolving animation for this game
+      setResolvingGames(prev => new Set(prev).add(currentGame.id));
+      
+      // Wait 0.75 seconds for the resolving animation (only for unresolved games)
+      await new Promise(resolve => setTimeout(resolve, 750));
+      
+      // Update this specific game in the working schedule immediately
+      Object.values(workingSchedule.weeks).forEach((week: any) => {
+        const gameIndex = week.games.findIndex((g: any) => g.id === currentGame.id);
+        
+        if (gameIndex !== -1) {
+          const scheduleGame = week.games[gameIndex];
+          scheduleGame.homeScore = resolution.homeScore;
+          scheduleGame.awayScore = resolution.awayScore;
+          scheduleGame.isPlayed = true;
+          
+          console.log(`🎯 Resolved: ${scheduleGame.awayTeam} ${resolution.awayScore} - ${resolution.homeScore} ${scheduleGame.homeTeam} (confidence: ${Math.round(resolution.confidence * 100)}%)`);
+        }
+      });
+
+      // Update the UI immediately so "___ wins!" appears right away
+      setSelectedSchedule({ ...workingSchedule });
+      
+      // Recalculate standings immediately so they're updated for the next game
+      const allGames = Object.values(workingSchedule.weeks).flatMap((week: any) => 
+        week.games.map((scheduleGame: any) => ({
+          id: scheduleGame.id,
+          homeTeam: scheduleGame.homeTeam,
+          awayTeam: scheduleGame.awayTeam,
+          homeScore: scheduleGame.homeScore,
+          awayScore: scheduleGame.awayScore,
+          week: parseInt(week.weekNumber.toString()),
+          date: `Week ${week.weekNumber}`,
+          time: 'TBD',
+          status: scheduleGame.isPlayed ? 'final' : 'scheduled'
+        }))
+      );
+      
+      const updatedStandings = calculateStandings(currentTeams, allGames);
+      setStandings(updatedStandings);
+      
+      // Determine winner and trigger winner animation
+      const winnerId = resolution.homeScore > resolution.awayScore ? currentGame.homeTeam : currentGame.awayTeam;
+      setWinnerAnimations(prev => new Set(prev).add(winnerId));
+      
+      // Remove winner animation after 1 second
+      setTimeout(() => {
+        setWinnerAnimations(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(winnerId);
+          return newSet;
+        });
+      }, 1000);
+      
+      // Stop resolving animation for this game
+      setResolvingGames(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(currentGame.id);
+        return newSet;
+      });
+    }
+
+    // Save the final updated schedule
+    ScheduleSaver.updateGameScore(workingSchedule.id, 'dummy', 0, 0).catch(error => {
       console.error('Failed to save resolved games:', error);
     });
 
-    // Update the UI
-    setSelectedSchedule(updatedSchedule);
-    
-    // Recalculate standings
-    const currentTeams = teams.length > 0 ? teams : fallbackTeams;
-    const allGames = Object.values(updatedSchedule.weeks).flatMap((week: any) => 
-      week.games.map((game: any) => ({
-        id: game.id,
-        homeTeam: game.homeTeam,
-        awayTeam: game.awayTeam,
-        homeScore: game.homeScore,
-        awayScore: game.awayScore,
-        week: parseInt(week.weekNumber.toString()),
-        date: `Week ${week.weekNumber}`,
-        time: 'TBD',
-        status: game.isPlayed ? 'final' : 'scheduled'
-      }))
-    );
-    
-    const updatedStandings = calculateStandings(currentTeams, allGames);
-    setStandings(updatedStandings);
-    
-    console.log(`✅ Resolved ${resolvedGames.length} games for Week ${currentWeek}`);
+    console.log(`✅ Resolved games for Week ${currentWeek}`);
   };
 
   const handleScheduleSelect = (schedule: SavedSchedule | null) => {
@@ -356,7 +409,7 @@ export default function Home() {
       
     } catch (error) {
       console.error('❌ Schedule generation failed:', error);
-      alert('Schedule generation failed. Please try again.');
+      alert(`Schedule generation failed: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check the console for detailed error information.`);
     } finally {
       setIsGeneratingSchedule(false);
     }
@@ -366,216 +419,81 @@ export default function Home() {
     setShowWelcomeModal(false);
   };
 
-  const generateFullNFLScheduleWithGLPK = async (teams: Team[]) => {
-    console.log('🧮 Initializing GLPK solver...');
+  const generateFullNFLScheduleWithGLPK = async (teams: Team[], retryCount: number = 0): Promise<Array<{ week: number; home: string; away: string }>> => {
+    const maxRetries = 3;
+    console.log(`🧮 Initializing real GLPK solver... (attempt ${retryCount + 1}/${maxRetries + 1})`);
     
     try {
-      // Initialize GLPK
-      const glpk = await initializeGLPK();
-      console.log('✅ GLPK initialized successfully');
+      // Generate all required matchups
+      const priorYearStandings: { [teamId: string]: number } = {};
+      teams.forEach(team => {
+        priorYearStandings[team.id] = 1;
+      });
+      const config = createScheduleConfig(teams, 2025, priorYearStandings);
+      const matchups = generateMatchups(config);
+      console.log(`📋 Generated ${matchups.length} matchups`);
       
-      // Create GLPK solver with proper NFL constraints
-      const solver = createGLPKScheduleSolver(teams, 18, {
+      // Create real GLPK solver with proper NFL constraints
+      const solver = createScheduleSolver(matchups, teams, 18, {
         maxGamesPerWeek: 16,
-        maxTeamsOnBye: 6,
-        byeWeekRange: { start: 5, end: 14 },
-        noByeWeek: 13
+        byeWeekDistribution: 'balanced'
       });
       
-      console.log('🔧 Solving with GLPK constraints...');
-      const solution = solver.solve();
+      console.log('🔧 Solving with real GLPK constraints...');
+      const solution = await solver.solve();
       
       if (solution.status === 'optimal') {
-        console.log(`✅ GLPK solved successfully! ${solution.games.length} games scheduled`);
+        console.log(`✅ Real GLPK solved successfully! ${solution.games.length} games scheduled`);
         console.log(`📊 Solve time: ${solution.solveTime}ms`);
-        console.log(`📊 Objective value: ${solution.objectiveValue}`);
-        console.log(`📊 Constraints satisfied:`, solution.constraints.map(c => `${c.description} (weight: ${c.weight})`));
+        console.log(`📊 Objective value: ${solution.objective}`);
+        console.log(`📊 Constraints satisfied:`, solution.constraints);
         
         // Convert GLPK solution to our format
         const games = solution.games.map(game => ({
           week: game.week,
           home: game.homeTeam,
           away: game.awayTeam,
+          day: 'Sunday', // Default to Sunday
         }));
         
         return games;
       } else {
-        console.warn(`⚠️ GLPK solver returned status: ${solution.status}`);
-        console.log('🔄 Falling back to manual distribution...');
-        return generateFullNFLSchedule(teams);
+        console.error(`❌ Real GLPK solver returned status: ${solution.status}`);
+        console.error(`📊 Solve time: ${solution.solveTime}ms`);
+        console.error(`📊 Objective value: ${solution.objective}`);
+        console.error(`📊 Constraints attempted:`, solution.constraints);
+        
+        if (retryCount < maxRetries) {
+          console.log(`🔄 Retrying real GLPK solver... (${retryCount + 1}/${maxRetries} retries used)`);
+          // Add a small delay before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return generateFullNFLScheduleWithGLPK(teams, retryCount + 1);
+        } else {
+          console.error(`💥 Real GLPK solver failed after ${maxRetries + 1} attempts. This is a critical error!`);
+          console.error(`💥 No fallback - GLPK should work!`);
+          console.error(`💥 Please check GLPK installation and constraints.`);
+          throw new Error(`Real GLPK solver failed after ${maxRetries + 1} attempts with status: ${solution.status}`);
+        }
       }
       
     } catch (error) {
-      console.error('❌ GLPK solver failed:', error);
-      console.log('🔄 Falling back to manual distribution...');
-      return generateFullNFLSchedule(teams);
+      console.error('❌ Real GLPK solver error:', error);
+      
+      if (retryCount < maxRetries) {
+        console.log(`🔄 Retrying real GLPK solver after error... (${retryCount + 1}/${maxRetries} retries used)`);
+        // Add a small delay before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return generateFullNFLScheduleWithGLPK(teams, retryCount + 1);
+      } else {
+        console.error(`💥 Real GLPK solver failed after ${maxRetries + 1} attempts due to error:`, error);
+        console.error(`💥 No fallback - GLPK should work!`);
+        console.error(`💥 Please check GLPK installation and constraints.`);
+        throw new Error(`Real GLPK solver failed after ${maxRetries + 1} attempts: ${error}`);
+      }
     }
   };
 
-  const generateFullNFLSchedule = (teams: Team[]) => {
-    // Create mock prior year standings (all teams tied for 1st in their division)
-    const priorYearStandings: { [teamId: string]: number } = {};
-    teams.forEach(team => {
-      priorYearStandings[team.id] = 1;
-    });
-    
-    // Create schedule config for 2025 season
-    const config = createScheduleConfig(teams, 2025, priorYearStandings);
-    
-    // Generate all matchups
-    const matchups = generateMatchups(config);
-    console.log(`🎯 Generated ${matchups.length} matchups`);
-    
-    // Convert matchups to weekly games with proper NFL scheduling
-    const games: Array<{ week: number; home: string; away: string }> = [];
-    
-    // Track which teams are playing in each week to avoid conflicts
-    const teamsInWeek: { [week: number]: Set<string> } = {};
-    const teamGamesCount: { [teamId: string]: number } = {};
-    
-    // Initialize team game counts
-    teams.forEach(team => {
-      teamGamesCount[team.id] = 0;
-    });
-    
-    // Sort matchups with randomization to prevent predictable Week 1 games
-    const sortedMatchups = [...matchups].sort((a, b) => {
-      const aHomeDiv = teams.find(t => t.id === a.home)?.division;
-      const aAwayDiv = teams.find(t => t.id === a.away)?.division;
-      const bHomeDiv = teams.find(t => t.id === b.home)?.division;
-      const bAwayDiv = teams.find(t => t.id === b.away)?.division;
-      
-      const aIsDivision = aHomeDiv === aAwayDiv;
-      const bIsDivision = bHomeDiv === bAwayDiv;
-      
-      // Add randomization factor to prevent same teams always appearing first
-      const aRandom = (a.home.charCodeAt(0) + a.away.charCodeAt(0) + Date.now()) % 100;
-      const bRandom = (b.home.charCodeAt(0) + b.away.charCodeAt(0) + Date.now()) % 100;
-      
-      if (aIsDivision && !bIsDivision) return -1;
-      if (!aIsDivision && bIsDivision) return 1;
-      
-      // Use randomization as tiebreaker
-      return aRandom - bRandom;
-    });
-    
-    console.log(`📊 Distributing ${sortedMatchups.length} games across 18 weeks`);
-    
-    // Calculate target games per week (272 total games / 18 weeks = ~15.1 games per week)
-    const targetGamesPerWeek = Math.ceil(sortedMatchups.length / 18);
-    console.log(`🎯 Target: ${targetGamesPerWeek} games per week`);
-    
-    sortedMatchups.forEach((matchup, index) => {
-      // Find the best week for this matchup
-      let bestWeek = 1;
-      let bestScore = -1;
-      
-      for (let week = 1; week <= 18; week++) {
-        if (!teamsInWeek[week]) {
-          teamsInWeek[week] = new Set();
-        }
-        
-        // Check if either team is already playing this week
-        if (teamsInWeek[week].has(matchup.home) || teamsInWeek[week].has(matchup.away)) {
-          continue;
-        }
-        
-        // Check if teams have already played 17 games
-        if (teamGamesCount[matchup.home] >= 17 || teamGamesCount[matchup.away] >= 17) {
-          continue;
-        }
-        
-        // Check if these teams played in the previous week (avoid consecutive matchups)
-        if (week > 1 && teamsInWeek[week - 1]) {
-          if (teamsInWeek[week - 1].has(matchup.home) && teamsInWeek[week - 1].has(matchup.away)) {
-            continue; // Skip if both teams played each other last week
-          }
-        }
-        
-        // Check if the reverse matchup was recently scheduled (avoid same teams playing too soon)
-        const reverseMatchup = `${matchup.away}-${matchup.home}`;
-        const recentWeeks = [week - 1, week - 2, week - 3]; // Check last 3 weeks
-        let recentlyPlayed = false;
-        
-        for (const recentWeek of recentWeeks) {
-          if (recentWeek > 0 && teamsInWeek[recentWeek]) {
-            if (teamsInWeek[recentWeek].has(matchup.home) && teamsInWeek[recentWeek].has(matchup.away)) {
-              recentlyPlayed = true;
-              break;
-            }
-          }
-        }
-        
-        if (recentlyPlayed) {
-          continue; // Skip if these teams played recently
-        }
-        
-        // Calculate score for this week
-        const homeDiv = teams.find(t => t.id === matchup.home)?.division;
-        const awayDiv = teams.find(t => t.id === matchup.away)?.division;
-        const isDivision = homeDiv === awayDiv;
-        const gamesThisWeek = teamsInWeek[week].size / 2;
-        
-        let score = 0;
-        
-        // Strongly prefer weeks that are under the target
-        if (gamesThisWeek < targetGamesPerWeek) {
-          score += 100; // Big bonus for under-target weeks
-        } else if (gamesThisWeek >= targetGamesPerWeek + 2) {
-          score -= 50; // Penalty for over-target weeks
-        }
-        
-        // Prefer earlier weeks for division games
-        if (isDivision) {
-          score += (18 - week) * 2; // Earlier weeks get higher scores
-        } else {
-          score += (18 - week); // Non-division games also prefer earlier weeks
-        }
-        
-        // Small preference for weeks with fewer games (within target range)
-        score -= gamesThisWeek;
-        
-        if (score > bestScore) {
-          bestScore = score;
-          bestWeek = week;
-        }
-      }
-      
-      // If we found a valid week, schedule the game
-      if (bestScore > -1) {
-        teamsInWeek[bestWeek].add(matchup.home);
-        teamsInWeek[bestWeek].add(matchup.away);
-        teamGamesCount[matchup.home]++;
-        teamGamesCount[matchup.away]++;
-        
-        games.push({
-          week: bestWeek,
-          home: matchup.home,
-          away: matchup.away,
-        });
-      } else {
-        console.warn(`⚠️ Could not schedule ${matchup.away} @ ${matchup.home}`);
-      }
-    });
-    
-    // Validate the schedule
-    const gamesPerTeam = Object.values(teamGamesCount);
-    const avgGames = gamesPerTeam.reduce((sum, count) => sum + count, 0) / gamesPerTeam.length;
-    const teamsWith17Games = gamesPerTeam.filter(count => count === 17).length;
-    
-    // Show distribution across weeks
-    const gamesPerWeek: { [week: number]: number } = {};
-    for (let week = 1; week <= 18; week++) {
-      gamesPerWeek[week] = teamsInWeek[week] ? teamsInWeek[week].size / 2 : 0;
-    }
-    
-    console.log(`📊 Final: ${games.length} games across ${games.length > 0 ? Math.max(...games.map(g => g.week)) : 0} weeks`);
-    console.log(`📊 Average games per team: ${avgGames.toFixed(1)}`);
-    console.log(`📊 Teams with 17 games: ${teamsWith17Games}/${teams.length}`);
-    console.log(`📊 Games per week:`, gamesPerWeek);
-    
-    return games;
-  };
+  // Manual fallback function removed - GLPK should work or fail
 
 
 
@@ -638,11 +556,16 @@ export default function Home() {
         <NavigationBar />
         
         <div className="nfl-container">
-          <WeekNavigation 
-            currentWeek={currentWeek}
-            onWeekChange={handleWeekChange}
-            onUpdate={refreshData}
-          />
+          <div className="text-center mb-6">
+            <div className="bg-gradient-to-r from-blue-600 to-red-600 text-white py-4 px-6 rounded-lg shadow-lg mb-4">
+              <h1 className="text-4xl font-bold mb-2">
+                🏈 NFL 2025-2026 SEASON
+              </h1>
+              <div className="text-lg opacity-90">
+                Weekly Actions
+              </div>
+            </div>
+          </div>
 
           {/* Resolve Unresolved Games Button */}
           {selectedSchedule && (() => {
@@ -677,15 +600,17 @@ export default function Home() {
             return null;
           })()}
 
+          {/* Navigation Bar */}
+          <WeekNavigation 
+            currentWeek={currentWeek}
+            onWeekChange={handleWeekChange}
+            onUpdate={refreshData}
+            onRegenerateSchedule={handleRegenerateSchedule}
+            isGeneratingSchedule={isGeneratingSchedule}
+          />
+
+          {/* Week Info */}
           <div className="text-center mb-6">
-            <div className="bg-gradient-to-r from-blue-600 to-red-600 text-white py-4 px-6 rounded-lg shadow-lg mb-4">
-              <h1 className="text-4xl font-bold mb-2">
-                🏈 NFL 2025-2026 SEASON
-              </h1>
-              <div className="text-lg opacity-90">
-                Weekly Actions
-              </div>
-            </div>
             <div className="text-xl font-semibold text-gray-800 bg-white py-2 px-4 rounded-lg shadow-sm inline-block">
               {isPlayoffWeek(currentWeek) ? getPlayoffWeekName(currentWeek) : `Week ${currentWeek}`}: Sep 4th - Sep 8th
             </div>
@@ -710,30 +635,9 @@ export default function Home() {
                 🏆 {getPlayoffStatusMessage(currentWeek)}
               </div>
             )}
-            <div className="mt-4 flex justify-center">
-              <button
-                onClick={handleRegenerateSchedule}
-                disabled={isGeneratingSchedule}
-                className={`btn transition-all duration-200 transform hover:scale-105 min-w-[200px] min-h-[44px] ${
-                  isGeneratingSchedule 
-                    ? 'btn-secondary opacity-50 cursor-not-allowed' 
-                    : 'btn-primary bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600'
-                }`}
-              >
-                {isGeneratingSchedule ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Generating...
-                  </>
-                ) : (
-                  '🔄 Regenerate Schedule'
-                )}
-              </button>
-            </div>
           </div>
+
+
 
           {/* Main Content - Standings View */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -765,6 +669,8 @@ export default function Home() {
                 onGameUpdate={handleGameUpdate}
                 onSubmitWeek={handleSubmitWeek}
                 onViewPools={handleViewPools}
+                resolvingGames={resolvingGames}
+                winnerAnimations={winnerAnimations}
               />
             </div>
 

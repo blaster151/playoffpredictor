@@ -67,6 +67,14 @@ export function getTeamBadgeStyle(teamId: string, isWinning: boolean = false) {
   };
 }
 
+// Get transparent team badge style for helmets
+export function getTransparentTeamBadgeStyle() {
+  return {
+    backgroundColor: 'transparent',
+    border: 'none'
+  };
+}
+
 // Check if a game is international based on venue
 export function isInternationalGame(venue?: string): boolean {
   if (!venue) return false;

@@ -210,15 +210,15 @@ export class GameResolver {
 
     if (homeWins && finalHomeScore <= finalAwayScore) {
       // Home team should win, so adjust scores if needed
-      finalHomeScore = finalAwayScore + this.getWeightedRandomScore(scoreDistribution, random);
+      finalHomeScore = Math.min(finalAwayScore + this.getWeightedRandomScore(scoreDistribution, random), 55);
     } else if (!homeWins && finalAwayScore <= finalHomeScore) {
       // Away team should win, so adjust scores if needed
-      finalAwayScore = finalHomeScore + this.getWeightedRandomScore(scoreDistribution, random);
+      finalAwayScore = Math.min(finalHomeScore + this.getWeightedRandomScore(scoreDistribution, random), 55);
     }
 
     return {
-      home: finalHomeScore,
-      away: finalAwayScore,
+      home: Math.min(finalHomeScore, 55),
+      away: Math.min(finalAwayScore, 55),
     };
   }
 
@@ -301,22 +301,22 @@ export class GameResolver {
       { score: 45, frequency: 0.05 },
     ];
 
-    // Generate two random scores
-    const score1 = this.getWeightedRandomScore(scoreDistribution, random);
-    const score2 = this.getWeightedRandomScore(scoreDistribution, random);
+    // Generate one score for each team independently
+    const homeScore = this.getWeightedRandomScore(scoreDistribution, random);
+    const awayScore = this.getWeightedRandomScore(scoreDistribution, random);
 
-    // Ensure the winning team has the higher score
+    // Ensure the winning team has the higher score and cap at 55
     const isHomeTeamWinning = winningTeamId === homeTeamId;
     
     if (isHomeTeamWinning) {
       return {
-        homeScore: Math.max(score1, score2),
-        awayScore: Math.min(score1, score2)
+        homeScore: Math.min(Math.max(homeScore, awayScore + 1), 55),
+        awayScore: Math.min(awayScore, 55)
       };
     } else {
       return {
-        homeScore: Math.min(score1, score2),
-        awayScore: Math.max(score1, score2)
+        homeScore: Math.min(homeScore, 55),
+        awayScore: Math.min(Math.max(awayScore, homeScore + 1), 55)
       };
     }
   }

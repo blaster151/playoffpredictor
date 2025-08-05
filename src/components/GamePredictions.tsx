@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Game } from '../types/nfl';
 import { getTeamById } from '../data/nflData';
-import { getTeamBadgeStyle } from '../utils/teamColors';
+import { getTeamBadgeStyle, getTransparentTeamBadgeStyle } from '../utils/teamColors';
 import { GameResolver } from '../utils/gameResolver';
 import { getTeamDisplay } from '../utils/helmetIcons';
 
@@ -10,13 +10,17 @@ interface GamePredictionsProps {
   onGameUpdate: (gameId: string, awayScore: number, homeScore: number) => void;
   onSubmitWeek: () => void;
   onViewPools: () => void;
+  resolvingGames?: Set<string>;
+  winnerAnimations?: Set<string>;
 }
 
 const GamePredictions: React.FC<GamePredictionsProps> = ({ 
   games, 
   onGameUpdate, 
   onSubmitWeek, 
-  onViewPools 
+  onViewPools,
+  resolvingGames = new Set(),
+  winnerAnimations = new Set()
 }) => {
   // Local state for input values to allow immediate typing
   const [inputScores, setInputScores] = useState<Record<string, { away: number; home: number }>>({});
@@ -120,25 +124,43 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
             const awayScore = currentInputs.away !== undefined ? currentInputs.away : (game.awayScore !== undefined ? game.awayScore : 10);
             const homeScore = currentInputs.home !== undefined ? currentInputs.home : (game.homeScore !== undefined ? game.homeScore : 10);
             
+            // Check if user has modified the scores from default
+            const hasUserModifiedScores = currentInputs.away !== undefined || currentInputs.home !== undefined || 
+                                         (game.awayScore !== undefined && game.awayScore !== 10) || 
+                                         (game.homeScore !== undefined && game.homeScore !== 10);
+            
             // Determine winner
             const awayWins = awayScore > homeScore;
             const homeWins = homeScore > awayScore;
-            const isTie = awayScore === homeScore;
+            const isTie = awayScore === homeScore && hasUserModifiedScores;
 
             return (
-              <div key={game.id} className="game-prediction bg-gray-50 rounded-lg p-3">
+              <div key={game.id} className={`game-prediction rounded-lg p-3 transition-all duration-300 ${
+                resolvingGames.has(game.id) 
+                  ? 'bg-yellow-100 border-2 border-yellow-400 shadow-lg' 
+                  : game.day === 'Monday' 
+                    ? 'bg-blue-50 border-2 border-blue-200' 
+                    : 'bg-gray-50'
+              }`}>
                 <div className="flex items-center justify-between space-x-2">
                   <div className={`flex items-center space-x-2 ${awayWins ? 'font-bold text-green-600' : ''}`}>
                     <div 
-                      className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:scale-110 transition-transform duration-200 overflow-hidden"
-                      style={getTeamBadgeStyle(awayTeam?.id || '', false)}
+                      className={`w-10 h-10 rounded flex items-center justify-center text-xs font-bold cursor-pointer hover:scale-110 transition-all duration-200 overflow-hidden ${
+                        resolvingGames.has(game.id) ? 'animate-pulse' : ''
+                      } ${
+                        winnerAnimations.has(game.awayTeam) ? 'scale-115' : ''
+                      }`}
+                      style={{
+                        ...getTransparentTeamBadgeStyle(),
+                        animation: resolvingGames.has(game.id) ? 'shake 0.5s ease-in-out infinite' : winnerAnimations.has(game.awayTeam) ? 'winnerScale 1s ease-in-out' : 'none'
+                      }}
                       onClick={() => handleAutoWin(game.id, game.awayTeam, game.homeTeam, game.awayTeam)}
                       title={`Click to give ${awayTeam?.abbreviation} an auto-win`}
                     >
                       <img 
                         src={getTeamDisplay(awayTeam?.id || '', false).content}
                         alt={awayTeam?.abbreviation || 'Team'}
-                        className="w-full h-full object-contain mix-blend-multiply"
+                        className="w-full h-full object-contain"
                         style={{ imageRendering: 'crisp-edges' }}
                         onError={(e) => {
                           // Fallback to text if image fails to load
@@ -167,15 +189,22 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
                       onChange={(e) => handleScoreChange(game.id, 'home', parseInt(e.target.value) || 0)}
                     />
                     <div 
-                      className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold shadow-sm cursor-pointer hover:scale-110 transition-transform duration-200 overflow-hidden"
-                      style={getTeamBadgeStyle(homeTeam?.id || '', false)}
+                      className={`w-10 h-10 rounded flex items-center justify-center text-xs font-bold cursor-pointer hover:scale-110 transition-all duration-200 overflow-hidden ${
+                        resolvingGames.has(game.id) ? 'animate-pulse' : ''
+                      } ${
+                        winnerAnimations.has(game.homeTeam) ? 'scale-115' : ''
+                      }`}
+                      style={{
+                        ...getTransparentTeamBadgeStyle(),
+                        animation: resolvingGames.has(game.id) ? 'shake 0.5s ease-in-out infinite' : winnerAnimations.has(game.homeTeam) ? 'winnerScale 1s ease-in-out' : 'none'
+                      }}
                       onClick={() => handleAutoWin(game.id, game.homeTeam, game.homeTeam, game.awayTeam)}
                       title={`Click to give ${homeTeam?.abbreviation} an auto-win`}
                     >
                       <img 
                         src={getTeamDisplay(homeTeam?.id || '', true).content}
                         alt={homeTeam?.abbreviation || 'Team'}
-                        className="w-full h-full object-contain mix-blend-multiply"
+                        className="w-full h-full object-contain"
                         style={{ imageRendering: 'crisp-edges' }}
                         onError={(e) => {
                           // Fallback to text if image fails to load
@@ -188,7 +217,9 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
                     </div>
                   </div>
                   
-                  <span className="text-sm text-gray-500 ml-2">{game.day}</span>
+                  <span className={`text-sm ml-2 ${game.day === 'Monday' ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
+                    {game.day === 'Monday' ? '🌙 MNF' : game.day}
+                  </span>
                 </div>
                 
                 {awayWins && (
@@ -215,7 +246,21 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 border-l-4 border-blue-500">
+    <>
+      <style jsx>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-2px); }
+          75% { transform: translateX(2px); }
+        }
+        
+        @keyframes winnerScale {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
+      <div className="bg-white rounded-lg shadow-lg p-4 border-l-4 border-blue-500">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-gray-900 flex items-center">
           <span className="mr-2">🎯</span>
@@ -233,6 +278,7 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
 
       {/* Pool buttons hidden - not needed for this implementation */}
     </div>
+    </>
   );
 };
 

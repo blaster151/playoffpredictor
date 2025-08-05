@@ -4,6 +4,8 @@ interface WeekNavigationProps {
   currentWeek: number;
   onWeekChange: (week: number) => void;
   onUpdate: () => void;
+  onRegenerateSchedule?: () => void;
+  isGeneratingSchedule?: boolean;
 }
 
 // NFL 2025 season week dates (approximate)
@@ -35,7 +37,9 @@ const WEEK_DATES = [
 const WeekNavigation: React.FC<WeekNavigationProps> = ({ 
   currentWeek, 
   onWeekChange, 
-  onUpdate 
+  onUpdate,
+  onRegenerateSchedule,
+  isGeneratingSchedule = false
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -57,69 +61,96 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
   }, []);
 
   return (
-    <div className="week-navigation">
-      <button 
-        className={`btn ${currentWeek === 1 ? 'btn-secondary opacity-50 cursor-not-allowed' : 'btn-secondary'}`}
-        onClick={() => onWeekChange(Math.max(1, currentWeek - 1))}
-        disabled={currentWeek === 1}
-      >
-        ◄ Previous
-      </button>
-      
-      <div className="flex items-center relative" ref={dropdownRef}>
+    <div className="week-navigation flex items-center justify-between">
+      <div className="flex items-center space-x-2">
         <button 
-          className="btn btn-primary px-6 py-2 flex items-center space-x-2"
-          onClick={() => setShowDropdown(!showDropdown)}
+          className={`btn ${currentWeek === 1 ? 'btn-secondary opacity-50 cursor-not-allowed' : 'btn-secondary'}`}
+          onClick={() => onWeekChange(Math.max(1, currentWeek - 1))}
+          disabled={currentWeek === 1}
         >
-          <span>Week {currentWeek}: {currentWeekData.start} - {currentWeekData.end}</span>
-          <span className="text-sm">▼</span>
+          ◄ Previous
         </button>
         
-        {showDropdown && (
-          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-64">
-            <div className="py-2">
-              {WEEK_DATES.map((weekData) => (
-                <button
-                  key={weekData.week}
-                  onClick={() => {
-                    onWeekChange(weekData.week);
-                    setShowDropdown(false);
-                  }}
-                  className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
-                    currentWeek === weekData.week 
-                      ? 'bg-blue-50 text-blue-600 font-medium' 
-                      : 'text-gray-700'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Week {weekData.week}</span>
-                    <span className="text-sm text-gray-500">{weekData.start} - {weekData.end}</span>
-                  </div>
-                </button>
-              ))}
+        <div className="flex items-center relative" ref={dropdownRef}>
+          <button 
+            className="btn btn-primary px-6 py-2 flex items-center space-x-2"
+            onClick={() => setShowDropdown(!showDropdown)}
+          >
+            <span>Week {currentWeek}: {currentWeekData.start} - {currentWeekData.end}</span>
+            <span className="text-sm">▼</span>
+          </button>
+          
+          {showDropdown && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-64">
+              <div className="py-2">
+                {WEEK_DATES.map((weekData) => (
+                  <button
+                    key={weekData.week}
+                    onClick={() => {
+                      onWeekChange(weekData.week);
+                      setShowDropdown(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
+                      currentWeek === weekData.week 
+                        ? 'bg-blue-50 text-blue-600 font-medium' 
+                        : 'text-gray-700'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Week {weekData.week}</span>
+                      <span className="text-sm text-gray-500">{weekData.start} - {weekData.end}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        
+        <button 
+          className={`btn ${currentWeek === WEEK_DATES.length ? 'btn-secondary opacity-50 cursor-not-allowed' : 'btn-secondary'}`}
+          onClick={() => onWeekChange(Math.min(WEEK_DATES.length, currentWeek + 1))}
+          disabled={currentWeek === WEEK_DATES.length}
+        >
+          Next ►
+        </button>
+        
+        <button 
+          className="btn btn-primary"
+          onClick={onUpdate}
+        >
+          🔄 Update
+        </button>
+        
+        <button className="btn btn-secondary">
+          ⋯ More
+        </button>
       </div>
-      
-      <button 
-        className={`btn ${currentWeek === WEEK_DATES.length ? 'btn-secondary opacity-50 cursor-not-allowed' : 'btn-secondary'}`}
-        onClick={() => onWeekChange(Math.min(WEEK_DATES.length, currentWeek + 1))}
-        disabled={currentWeek === WEEK_DATES.length}
-      >
-        Next ►
-      </button>
-      
-      <button 
-        className="btn btn-primary"
-        onClick={onUpdate}
-      >
-        🔄 Update
-      </button>
-      
-      <button className="btn btn-secondary">
-        ⋯ More
-      </button>
+
+      {/* Right-justified Regenerate Schedule button */}
+      {onRegenerateSchedule && (
+        <button
+          onClick={onRegenerateSchedule}
+          disabled={isGeneratingSchedule}
+          className={`btn transition-all duration-200 transform hover:scale-105 min-w-[200px] min-h-[44px] ${
+            isGeneratingSchedule 
+              ? 'btn-secondary opacity-50 cursor-not-allowed' 
+              : 'btn-primary bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600'
+          }`}
+        >
+          {isGeneratingSchedule ? (
+            <>
+              <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Generating...
+            </>
+          ) : (
+            '🔄 Regenerate Schedule'
+          )}
+        </button>
+      )}
     </div>
   );
 };

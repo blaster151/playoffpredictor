@@ -1,6 +1,7 @@
 import React from 'react';
 import { TeamStanding } from '../types/nfl';
 import { getTeamDisplay } from '../utils/helmetIcons';
+import { getTransparentTeamBadgeStyle } from '../utils/teamColors';
 import { getTeamById } from '../data/nflData';
 
 interface StandingsPanelProps {
@@ -93,7 +94,10 @@ const StandingsPanel: React.FC<StandingsPanelProps> = ({
                       return (
                         <tr key={standing.team.id} className={`${index % 2 === 0 ? 'bg-gray-50' : ''} ${isEliminated ? 'opacity-50' : ''}`}>
                           <td className="flex items-center space-x-2">
-                            <div className={`w-6 h-6 rounded flex items-center justify-center text-xs overflow-hidden ${isEliminated ? 'bg-gray-400' : 'bg-gray-300'}`}>
+                            <div 
+                              className={`w-8 h-8 rounded flex items-center justify-center text-xs overflow-hidden ${isEliminated ? 'opacity-50' : ''}`}
+                              style={getTransparentTeamBadgeStyle()}
+                            >
                               <img 
                                 src={getTeamDisplay(standing.team.id, false).content}
                                 alt={standing.team.abbreviation}
@@ -143,7 +147,10 @@ const StandingsPanel: React.FC<StandingsPanelProps> = ({
                     {standing.playoffSeed || '-'}
                   </td>
                   <td className="flex items-center space-x-2">
-                    <div className={`w-6 h-6 rounded flex items-center justify-center text-xs overflow-hidden ${isEliminated ? 'bg-gray-400' : 'bg-gray-300'}`}>
+                    <div 
+                      className={`w-8 h-8 rounded flex items-center justify-center text-xs overflow-hidden ${isEliminated ? 'opacity-50' : ''}`}
+                      style={getTransparentTeamBadgeStyle()}
+                    >
                       <img 
                         src={getTeamDisplay(standing.team.id, false).content}
                         alt={standing.team.abbreviation}
