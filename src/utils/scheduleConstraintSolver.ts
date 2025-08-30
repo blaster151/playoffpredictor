@@ -338,31 +338,26 @@ export class ScheduleConstraintSolver {
     }
 
     // Constraint 8: Bye week constraints - NFL rules
-    // Bye weeks allowed only in weeks 4-14 (simplified from 5-14 for better feasibility)
+    // Bye weeks allowed only in weeks 4-14
     // Maximum 6 teams on bye per week
     for (let w = 1; w <= numWeeks; w++) {
+      const weekVars: { name: string; coef: number }[] = [];
+      for (let m = 0; m < numMatchups; m++) {
+        weekVars.push({ name: `x_${m}_${w}`, coef: 1 });
+      }
+      
       if (w >= 4 && w <= 14) {
-        // For bye weeks, ensure at least some games are played
-        const weekVars: { name: string; coef: number }[] = [];
-        for (let m = 0; m < numMatchups; m++) {
-          weekVars.push({ name: `x_${m}_${w}`, coef: 1 });
-        }
+        // Bye weeks allowed - between 13 and 16 games (max 6 teams on bye)
+        const minGamesInByeWeek = Math.floor((numTeams - 6) / 2); // 13 for 32 teams
+        const maxGamesInByeWeek = numTeams / 2; // 16 for 32 teams
         
-        // At least (numTeams - 6) / 2 games per bye week (max 6 teams on bye)
-        const minGamesInByeWeek = Math.floor((numTeams - 6) / 2);
         subjectTo.push({
-          name: `bye_week_min_${w}`,
+          name: `bye_week_${w}`,
           vars: weekVars,
-          bnds: { type: glpkInstance.GLP_LO, lb: minGamesInByeWeek, ub: 0 }
+          bnds: { type: glpkInstance.GLP_DB, lb: minGamesInByeWeek, ub: maxGamesInByeWeek }
         });
       } else {
-        // No bye weeks allowed - all teams must play
-        const weekVars: { name: string; coef: number }[] = [];
-        for (let m = 0; m < numMatchups; m++) {
-          weekVars.push({ name: `x_${m}_${w}`, coef: 1 });
-        }
-        
-        // Exactly numTeams/2 games (all teams playing)
+        // No bye weeks allowed - exactly 16 games (all teams playing)
         subjectTo.push({
           name: `no_bye_week_${w}`,
           vars: weekVars,
@@ -380,6 +375,17 @@ export class ScheduleConstraintSolver {
     console.log('  - Sample constraints:', subjectTo.slice(0, 3));
     console.log('  - Sample variables:', varNames.slice(0, 5));
 
+    // Add explicit bounds for binary variables to prevent unbounded solutions
+    const bounds: { name: string; type: number; lb: number; ub: number }[] = [];
+    for (const varName of varNames) {
+      bounds.push({
+        name: varName,
+        type: glpkInstance.GLP_DB,
+        lb: 0,
+        ub: 1
+      });
+    }
+
     return {
       name: 'NFL_Schedule_Optimization',
       objective: {
@@ -388,6 +394,7 @@ export class ScheduleConstraintSolver {
         vars: objectiveVars
       },
       subjectTo,
+      bounds,
       binaries: varNames
     };
   }
