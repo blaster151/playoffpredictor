@@ -58,6 +58,13 @@ export class ScheduleConstraintSolver {
     const startTime = Date.now();
 
     try {
+      // Diagnose potential issues first
+      const diagnosis = this.diagnoseConstraints();
+      if (diagnosis.feasibilityIssues.length > 0) {
+        console.warn('⚠️ Potential constraint issues detected:');
+        diagnosis.feasibilityIssues.forEach(issue => console.warn(`  - ${issue}`));
+      }
+      
       // Initialize GLPK first
       const glpkInstance = await initGLPK();
       
@@ -152,8 +159,16 @@ export class ScheduleConstraintSolver {
         const varName = `x_${m}_${w}`;
         const matchup = this.matchups[m];
         
-        // Maximize games scheduled (coefficient of 1 for each game)
-        objectiveVars.push({ name: varName, coef: 1 });
+        // Smart objective: prefer middle weeks for flexibility
+        // Weeks 6-12 get coefficient 1, others get slightly higher to discourage edge weeks
+        let coef = 1;
+        if (w <= 3 || w >= 16) {
+          coef = 1.1; // Slightly discourage very early/late games
+        } else if (w >= 6 && w <= 12) {
+          coef = 0.9; // Slightly prefer middle weeks
+        }
+        
+        objectiveVars.push({ name: varName, coef });
         varNames.push(varName);
       }
     }
@@ -199,20 +214,7 @@ export class ScheduleConstraintSolver {
       }
     }
 
-    // Constraint 3: Maximum games per week
-    for (let w = 1; w <= numWeeks; w++) {
-      const vars: { name: string; coef: number }[] = [];
-      
-      for (let m = 0; m < numMatchups; m++) {
-        vars.push({ name: `x_${m}_${w}`, coef: 1 });
-      }
-      
-      subjectTo.push({
-        name: `max_games_week_${w}`,
-        vars,
-        bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: this.constraints.maxGamesPerWeek || 16 }
-      });
-    }
+    // Constraint 3 removed - handled by bye week constraints below
 
     // Constraint 4: Each team must have exactly 17 games (1 bye week) - NFL REQUIREMENT
     for (let t = 0; t < numTeams; t++) {
@@ -307,25 +309,7 @@ export class ScheduleConstraintSolver {
       }
     }
 
-    // Constraint 6: Ensure balanced weekly distribution but with more flexibility
-    const targetGamesPerWeek = Math.floor(numMatchups / numWeeks);
-    for (let w = 1; w <= numWeeks; w++) {
-      const vars: { name: string; coef: number }[] = [];
-      
-      for (let m = 0; m < numMatchups; m++) {
-        vars.push({ name: `x_${m}_${w}`, coef: 1 });
-      }
-      
-      // More flexible bounds to improve feasibility
-      const minGames = Math.max(1, targetGamesPerWeek - 5);
-      const maxGames = Math.min(this.constraints.maxGamesPerWeek || 16, targetGamesPerWeek + 5);
-      
-      subjectTo.push({
-        name: `weekly_balance_${w}`,
-        vars,
-        bnds: { type: glpkInstance.GLP_DB, lb: minGames, ub: maxGames }
-      });
-    }
+    // Constraint 6 removed - weekly distribution is handled by bye week constraints
 
     // Constraint 7: Prevent too many inter-conference games in the same week
     for (let w = 1; w <= numWeeks; w++) {
@@ -399,8 +383,8 @@ export class ScheduleConstraintSolver {
     return {
       name: 'NFL_Schedule_Optimization',
       objective: {
-        direction: 2, // GLP_MAX (maximize games scheduled)
-        name: 'total_games',
+        direction: glpkInstance.GLP_MIN, // Minimize cost (lower cost = better schedule)
+        name: 'schedule_cost',
         vars: objectiveVars
       },
       subjectTo,
@@ -472,6 +456,8 @@ export class ScheduleConstraintSolver {
     matchupsPerTeam: { [teamId: string]: number };
     totalConstraints: number;
     totalVariables: number;
+    totalMatchups: number;
+    requiredMatchups: number;
     feasibilityIssues: string[];
   } {
     const matchupsPerTeam: { [teamId: string]: number } = {};
@@ -492,12 +478,15 @@ export class ScheduleConstraintSolver {
     }
     
     // Check for potential issues
+    const requiredMatchups = (this.teams.length * 17) / 2; // Each team plays 17 games
+    
+    if (this.matchups.length !== requiredMatchups) {
+      feasibilityIssues.push(`Have ${this.matchups.length} matchups but need exactly ${requiredMatchups}`);
+    }
+    
     for (const [teamId, count] of Object.entries(matchupsPerTeam)) {
-      if (count < 17) {
-        feasibilityIssues.push(`Team ${teamId} only has ${count} matchups (needs 17)`);
-      }
-      if (count > 17) {
-        feasibilityIssues.push(`Team ${teamId} has ${count} matchups (max 17)`);
+      if (count !== 17) {
+        feasibilityIssues.push(`Team ${teamId} has ${count} matchups (needs exactly 17)`);
       }
     }
     
@@ -508,10 +497,18 @@ export class ScheduleConstraintSolver {
       feasibilityIssues.push(`Problem size may be too large: ${totalVariables} variables`);
     }
     
+    // Check bye week feasibility
+    const totalGameSlots = this.weeks * 16; // Max 16 games per week
+    if (requiredMatchups > totalGameSlots) {
+      feasibilityIssues.push(`Not enough game slots: ${totalGameSlots} available, ${requiredMatchups} needed`);
+    }
+    
     return {
       matchupsPerTeam,
       totalConstraints,
       totalVariables,
+      totalMatchups: this.matchups.length,
+      requiredMatchups,
       feasibilityIssues,
     };
   }

@@ -2,7 +2,7 @@
 
 ## 🎯 Overview
 
-This document outlines the issues found with the GLPK.js constraint solver implementation and the fixes applied to resolve the "last 10%" of problems.
+This document outlines the issues found with the GLPK.js constraint solver implementation and the fixes applied to resolve the "last 10%" of problems while maintaining NFL scheduling requirements.
 
 ## 🔍 Issues Identified
 
@@ -21,17 +21,20 @@ This document outlines the issues found with the GLPK.js constraint solver imple
 - **Reality**: GLPK.js `solve()` method is synchronous
 - **Impact**: Unnecessary async overhead, potential timing issues
 
-### 3. **Over-Constrained Problem Formulation**
-- **Problem**: Too many strict constraints making problems infeasible:
-  - Exactly 17 games per team requirement
-  - Strict bye week restrictions (weeks 1-3, 13)
-  - Complex bye team counting adding many variables
-  - Tight weekly game distribution bounds
-- **Impact**: Solver couldn't find feasible solutions for realistic NFL schedules
+### 3. **Conflicting Constraint Definitions**
+- **Problem**: Multiple constraints defining the same limits differently:
+  - Duplicate max games per week constraints
+  - Overlapping bye week and weekly distribution rules
+  - Inconsistent bounds on game counts
+- **Impact**: Solver receiving contradictory instructions, leading to infeasibility
 
 ### 4. **Poor Error Diagnostics**
 - **Problem**: Limited visibility into why problems were failing
 - **Impact**: Difficult to debug and fix constraint issues
+
+### 5. **Suboptimal Objective Function**
+- **Problem**: Simple "maximize games" objective didn't guide solver effectively
+- **Impact**: Solver struggled to find good solutions within constraints
 
 ## ✅ Fixes Applied
 
@@ -60,16 +63,29 @@ const result = await glpk.solve(problem);
 const result = glpk.solve(problem);
 ```
 
-### 3. **Relaxed Constraints**
-- **Game count per team**: Changed from exactly 17 to flexible range based on available matchups
-- **Weekly distribution**: Increased flexibility from ±2 to ±5 games per week
-- **Removed complex constraints**: Eliminated bye week team counting that added too many variables
-- **Matchup scheduling**: Changed from "must schedule" to "may schedule" for better flexibility
+### 3. **Fixed Constraint Conflicts**
+- **Maintained strict NFL requirements**: 
+  - Each team plays exactly 17 games (one bye week)
+  - Each matchup scheduled exactly once
+- **Cleaned up duplicate constraints**: Removed conflicting weekly game limits
+- **Implemented proper bye week logic**:
+  - No byes in weeks 1-3 or 15-18 (all teams play)
+  - Bye weeks allowed only in weeks 4-14
+  - Maximum 6 teams on bye per week
+- **Fixed consecutive game prevention**: Properly prevents same teams playing in back-to-back weeks
 
 ### 4. **Added Better Diagnostics**
 - Added `diagnoseConstraints()` method to identify potential issues before solving
+- Checks for correct number of matchups (272 for 32 teams)
+- Verifies each team has exactly 17 matchups
 - Improved logging to show solve time, status codes, and solution quality
-- Added constraint analysis to identify teams with insufficient matchups
+
+### 5. **Improved Objective Function**
+- Changed from "maximize games" to "minimize cost"
+- Added smart coefficients to guide solver:
+  - Slightly prefer middle weeks (6-12) for flexibility
+  - Slightly discourage very early (1-3) or late (16-18) games
+  - Helps solver find better solutions faster
 
 ## 📊 Performance Improvements
 
@@ -85,20 +101,25 @@ const result = glpk.solve(problem);
 
 ## 🛠️ Usage Recommendations
 
-### 1. **Problem Size Management**
-- Keep variables under 5000 for reasonable performance
-- Use the simplified constraint set for initial solutions
-- Add complex constraints incrementally if needed
+### 1. **Pre-solve Diagnostics**
+- Always run `diagnoseConstraints()` before solving
+- Ensure you have exactly 272 matchups for 32 teams
+- Verify each team appears in exactly 17 matchups
 
 ### 2. **Constraint Formulation**
-- Start with loose bounds and tighten as needed
-- Use inequality constraints instead of equality when possible
-- Allow for partial solutions rather than requiring perfection
+- Keep NFL requirements strict (17 games per team, proper bye weeks)
+- Avoid duplicate or conflicting constraints
+- Use the consecutive games constraint to prevent back-to-back matchups
 
 ### 3. **Error Handling**
-- Always check for solution existence, not just status codes
-- Use the diagnostic methods to identify issues before solving
-- Log detailed information for debugging
+- Accept both status 1 (optimal) and status 5 (undefined with solution)
+- Check for solution variables, not just status codes
+- Use diagnostic output to understand failures
+
+### 4. **Matchup Generation**
+- Ensure your matchup generator creates exactly the right number of games
+- Validate matchups before feeding to the constraint solver
+- Consider using the constraint relaxation strategy for edge cases
 
 ## 🔮 Future Improvements
 
