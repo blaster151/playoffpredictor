@@ -325,28 +325,39 @@ export class NFLScheduleILP {
       
       console.log(`Created ILP model with ${problem.binaries.length} variables and ${problem.subjectTo.length} constraints`);
       
-      // Solve using GLPK
-      const result = await this.glpk.solve(problem);
+      // Solve using GLPK (solve is synchronous)
+      const result = this.glpk.solve(problem);
       
       const solveTime = Date.now() - startTime;
 
-      if (result.status === 'optimal' || result.result?.status === 1) {
+      // Check result status - GLPK.js returns numeric codes
+      const statusCode = result.result?.status;
+      console.log('GLPK Status Code:', statusCode, 'Result:', result);
+      
+      // Status codes: 1=optimal, 2=feasible, 3=infeasible, 4=unbounded, 5=undefined
+      if (result.result && result.result.vars && Object.keys(result.result.vars).length > 0) {
         const games = this.extractSolution(result.result);
         const stats = this.calculateStats(games);
         
+        // Map numeric status to string
+        let status: 'optimal' | 'infeasible' | 'unbounded' | 'error' = 'optimal';
+        if (statusCode === 3) status = 'infeasible';
+        else if (statusCode === 4) status = 'unbounded';
+        else if (!statusCode || (statusCode !== 1 && statusCode !== 5)) status = 'error';
+        
         return {
           games,
-          objective: result.result.z,
-          status: 'optimal',
+          objective: result.result.z || 0,
+          status,
           solveTime,
           stats,
         };
       } else {
-        console.log('GLPK solve failed with status:', result.status, result.result?.status);
+        console.log('GLPK solve failed - no solution found');
         return {
           games: [],
           objective: 0,
-          status: result.status || 'infeasible',
+          status: 'infeasible',
           solveTime,
           stats: { totalGames: 0, weeksUsed: 0, teamsWithByes: 0, averageGamesPerWeek: 0 },
         };
