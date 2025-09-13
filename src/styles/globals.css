@@ -2,28 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
-}
-
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-200;
 }
 
 /* Custom styles for NFL playoff predictor */
@@ -44,17 +24,14 @@ body {
   align-items: center;
   gap: 10px;
   padding: 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  margin-bottom: 10px;
+  @apply border border-gray-200 dark:border-gray-700 rounded-lg mb-2.5 bg-white dark:bg-gray-800;
 }
 
 .score-input {
   width: 60px;
   padding: 5px;
   text-align: center;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+  @apply border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white;
 }
 
 .standings-table {
@@ -66,22 +43,20 @@ body {
 .standings-table td {
   padding: 8px;
   text-align: left;
-  border-bottom: 1px solid #e5e7eb;
+  @apply border-b border-gray-200 dark:border-gray-700;
 }
 
 .standings-table th {
-  background-color: #f9fafb;
-  font-weight: 600;
+  @apply bg-gray-50 dark:bg-gray-800 font-semibold;
 }
 
 .week-navigation {
   display: flex;
   align-items: center;
   gap: 15px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   padding: 15px;
-  background-color: #f9fafb;
-  border-radius: 8px;
+  @apply bg-gray-50 dark:bg-gray-800 rounded-lg;
 }
 
 .btn {
@@ -109,4 +84,17 @@ body {
 
 .btn-secondary:hover {
   background-color: #4b5563;
+}
+
+/* Game prediction animations */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes winnerScale {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
 } 

@@ -113,21 +113,131 @@ export const calculateStandings = (teams: Team[], games: Game[]): TeamStanding[]
   const sortedAfc = sortStandings(afcStandings);
   const sortedNfc = sortStandings(nfcStandings);
 
-  // Assign playoff seeds and status
-  [...sortedAfc, ...sortedNfc].forEach((standing, index) => {
-    const isAfc = standing.team.conference === 'AFC';
-    const conferenceStandings = isAfc ? sortedAfc : sortedNfc;
-    const conferenceIndex = conferenceStandings.indexOf(standing);
-
-    if (conferenceIndex < 7) { // Top 7 teams in each conference make playoffs
-      standing.playoffSeed = conferenceIndex + 1;
-      standing.playoffStatus = 'in';
-    } else if (conferenceIndex < 10) { // Teams 8-10 are in the bubble
-      standing.playoffStatus = 'bubble';
-    } else {
-      standing.playoffStatus = 'out';
-    }
-  });
+  // Assign playoff seeds and status using proper NFL seeding rules
+  const assignPlayoffSeeds = (conferenceStandings: TeamStanding[]) => {
+    // Group teams by division
+    const divisions = ['North', 'South', 'East', 'West'];
+    const divisionWinners: TeamStanding[] = [];
+    const wildCards: TeamStanding[] = [];
+    
+         // Find division winners (best record in each division)
+     divisions.forEach(division => {
+       const divisionTeams = conferenceStandings.filter(s => s.team.division === division);
+       if (divisionTeams.length > 0) {
+         // Only consider teams that have played games for division winners
+         const teamsWithGames = divisionTeams.filter(team => team.gamesPlayed > 0);
+         if (teamsWithGames.length > 0) {
+           // Sort by record and take the best
+           const sortedDivisionTeams = teamsWithGames.sort((a, b) => {
+             const aWinPct = a.record.wins / (a.record.wins + a.record.losses + a.record.ties);
+             const bWinPct = b.record.wins / (b.record.wins + b.record.losses + b.record.ties);
+             
+             if (aWinPct !== bWinPct) return bWinPct - aWinPct;
+             
+             // Tiebreaker: head-to-head (simplified - using point differential)
+             const aPointDiff = a.record.pointsFor - a.record.pointsAgainst;
+             const bPointDiff = b.record.pointsFor - b.record.pointsAgainst;
+             return bPointDiff - aPointDiff;
+           });
+           divisionWinners.push(sortedDivisionTeams[0]);
+         }
+       }
+     });
+    
+    // Sort division winners by record (seeds 1-4)
+    divisionWinners.sort((a, b) => {
+      const aWinPct = a.record.wins / (a.record.wins + a.record.losses + a.record.ties);
+      const bWinPct = b.record.wins / (b.record.wins + b.record.losses + b.record.ties);
+      
+      if (aWinPct !== bWinPct) return bWinPct - aWinPct;
+      
+      // Tiebreaker: conference record
+      const aConfPct = a.record.conferenceWins / (a.record.conferenceWins + a.record.conferenceLosses + a.record.conferenceTies);
+      const bConfPct = b.record.conferenceWins / (b.record.conferenceWins + b.record.conferenceLosses + b.record.conferenceTies);
+      
+      if (aConfPct !== bConfPct) return bConfPct - aConfPct;
+      
+      // Final tiebreaker: point differential
+      const aPointDiff = a.record.pointsFor - a.record.pointsAgainst;
+      const bPointDiff = b.record.pointsFor - b.record.pointsAgainst;
+      return bPointDiff - aPointDiff;
+    });
+    
+         // Assign seeds 1-4 to division winners
+     divisionWinners.forEach((winner, index) => {
+       winner.playoffSeed = index + 1;
+       winner.playoffStatus = 'in';
+     });
+     
+     // Find wild cards (non-division winners with best records)
+     const nonWinners = conferenceStandings.filter(standing => 
+       !divisionWinners.some(winner => winner.team.id === standing.team.id)
+     );
+     
+     // Sort wild cards by record (only include teams that have played games)
+     const teamsWithGames = nonWinners.filter(standing => standing.gamesPlayed > 0);
+     wildCards.push(...teamsWithGames.sort((a, b) => {
+       const aWinPct = a.record.wins / (a.record.wins + a.record.losses + a.record.ties);
+       const bWinPct = b.record.wins / (b.record.wins + b.record.losses + b.record.ties);
+       
+       if (aWinPct !== bWinPct) return bWinPct - aWinPct;
+       
+       // Tiebreaker: conference record
+       const aConfPct = a.record.conferenceWins / (a.record.conferenceWins + a.record.conferenceLosses + a.record.conferenceTies);
+       const bConfPct = b.record.conferenceWins / (b.record.conferenceWins + b.record.conferenceLosses + b.record.conferenceTies);
+       
+       if (aConfPct !== bConfPct) return bConfPct - aConfPct;
+       
+       // Final tiebreaker: point differential
+       const aPointDiff = a.record.pointsFor - a.record.pointsAgainst;
+       const bPointDiff = b.record.pointsFor - b.record.pointsAgainst;
+       return bPointDiff - aPointDiff;
+     }));
+     
+     // Assign seeds 1-16 to ALL teams in the conference based on overall record
+     // First, sort all teams by record
+     const allTeamsSorted = conferenceStandings.sort((a, b) => {
+       const aWinPct = a.record.wins / (a.record.wins + a.record.losses + a.record.ties);
+       const bWinPct = b.record.wins / (b.record.wins + b.record.losses + b.record.ties);
+       
+       if (aWinPct !== bWinPct) return bWinPct - aWinPct;
+       
+       // Tiebreaker: conference record
+       const aConfPct = a.record.conferenceWins / (a.record.conferenceWins + a.record.conferenceLosses + a.record.conferenceTies);
+       const bConfPct = b.record.conferenceWins / (b.record.conferenceWins + b.record.conferenceLosses + b.record.conferenceTies);
+       
+       if (aConfPct !== bConfPct) return bConfPct - aConfPct;
+       
+       // Final tiebreaker: point differential
+       const aPointDiff = a.record.pointsFor - a.record.pointsAgainst;
+       const bPointDiff = b.record.pointsFor - b.record.pointsAgainst;
+       return bPointDiff - aPointDiff;
+     });
+     
+     // Assign seeds 1-16 to all teams
+     allTeamsSorted.forEach((standing, index) => {
+       standing.playoffSeed = index + 1;
+       
+       // Set playoff status based on seed
+       if (index < 7) {
+         standing.playoffStatus = 'in'; // Seeds 1-7 are in playoffs
+       } else if (index < 10) {
+         standing.playoffStatus = 'bubble'; // Seeds 8-10 are bubble teams
+       } else {
+         standing.playoffStatus = 'out'; // Seeds 11-16 are out
+       }
+     });
+    
+    // Mark non-playoff teams as out
+    conferenceStandings.forEach(standing => {
+      if (!standing.playoffSeed && standing.playoffStatus !== 'bubble') {
+        standing.playoffStatus = 'out';
+      }
+    });
+  };
+  
+  assignPlayoffSeeds(sortedAfc);
+  assignPlayoffSeeds(sortedNfc);
 
   return [...sortedAfc, ...sortedNfc];
 };

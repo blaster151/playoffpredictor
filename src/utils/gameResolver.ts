@@ -19,7 +19,7 @@ interface TeamStats {
 }
 
 export class GameResolver {
-  private static readonly BASE_SCORE_RANGE = { min: 10, max: 35 };
+  private static readonly BASE_SCORE_RANGE = { min: 10, max: 30 };
   private static readonly CLOSE_GAME_THRESHOLD = 0.15; // 15% difference threshold for close games
   private static readonly RANDOMNESS_FACTOR = 0.5; // 50% randomness factor
 
@@ -150,7 +150,7 @@ export class GameResolver {
   ): { home: number; away: number } {
     const random = this.getSeededRandom(seed);
     
-    // NFL score frequency distribution (percentages)
+    // NFL score frequency distribution (percentages) - capped at 32 for more realistic scores
     const scoreDistribution = [
       { score: 0, frequency: 0.88 },
       { score: 1, frequency: 0.17 },
@@ -185,24 +185,11 @@ export class GameResolver {
       { score: 30, frequency: 2.28 },
       { score: 31, frequency: 6.84 },
       { score: 32, frequency: 1.40 },
-      { score: 33, frequency: 1.06 },
-      { score: 34, frequency: 2.81 },
-      { score: 35, frequency: 1.58 },
-      { score: 36, frequency: 1.05 },
-      { score: 37, frequency: 2.81 },
-      { score: 38, frequency: 1.76 },
-      { score: 39, frequency: 0.35 },
-      { score: 40, frequency: 0.17 },
-      { score: 41, frequency: 1.16 },
-      { score: 42, frequency: 0.3 },
-      { score: 43, frequency: 0.2 },
-      { score: 44, frequency: 0.1 },
-      { score: 45, frequency: 0.05 },
     ];
 
-    // Generate scores using weighted random selection
-    const homeScore = this.getWeightedRandomScore(scoreDistribution, random);
-    const awayScore = this.getWeightedRandomScore(scoreDistribution, random);
+    // Generate scores using weighted random selection with different seeds for variety
+    const homeScore = this.getWeightedRandomScore(scoreDistribution, this.getSeededRandom(seed));
+    const awayScore = this.getWeightedRandomScore(scoreDistribution, this.getSeededRandom(seed ? seed + 5000 : undefined));
 
     // Ensure the winner matches the predicted outcome
     let finalHomeScore = homeScore;
@@ -210,15 +197,31 @@ export class GameResolver {
 
     if (homeWins && finalHomeScore <= finalAwayScore) {
       // Home team should win, so adjust scores if needed
-      finalHomeScore = Math.min(finalAwayScore + this.getWeightedRandomScore(scoreDistribution, random), 55);
+      // Use more varied adjustments to prevent clustering
+      const adjustment = Math.floor(random() * 7) + 1; // 1-7 point adjustment
+      finalHomeScore = Math.min(finalAwayScore + adjustment, 30);
     } else if (!homeWins && finalAwayScore <= finalHomeScore) {
       // Away team should win, so adjust scores if needed
-      finalAwayScore = Math.min(finalHomeScore + this.getWeightedRandomScore(scoreDistribution, random), 55);
+      // Use more varied adjustments to prevent clustering
+      const adjustment = Math.floor(random() * 7) + 1; // 1-7 point adjustment
+      finalAwayScore = Math.min(finalHomeScore + adjustment, 30);
+    }
+
+    // Add small random variation to prevent exact ties (unless it's a close game)
+    const scoreDifference = Math.abs(finalHomeScore - finalAwayScore);
+    if (scoreDifference <= 1) {
+      // For very close games, add a small random boost to one team
+      const variation = Math.floor(random() * 3) + 1;
+      if (random() > 0.5) {
+        finalHomeScore = Math.min(finalHomeScore + variation, 30);
+      } else {
+        finalAwayScore = Math.min(finalAwayScore + variation, 30);
+      }
     }
 
     return {
-      home: Math.min(finalHomeScore, 55),
-      away: Math.min(finalAwayScore, 55),
+      home: Math.min(finalHomeScore, 30),
+      away: Math.min(finalAwayScore, 30),
     };
   }
 
@@ -251,7 +254,7 @@ export class GameResolver {
   ): { homeScore: number; awayScore: number } {
     const random = this.getSeededRandom(seed);
     
-    // NFL score frequency distribution (percentages)
+    // NFL score frequency distribution (percentages) - capped at 32 for more realistic scores
     const scoreDistribution = [
       { score: 0, frequency: 0.88 },
       { score: 1, frequency: 0.17 },
@@ -286,37 +289,24 @@ export class GameResolver {
       { score: 30, frequency: 2.28 },
       { score: 31, frequency: 6.84 },
       { score: 32, frequency: 1.40 },
-      { score: 33, frequency: 1.06 },
-      { score: 34, frequency: 2.81 },
-      { score: 35, frequency: 1.58 },
-      { score: 36, frequency: 1.05 },
-      { score: 37, frequency: 2.81 },
-      { score: 38, frequency: 1.76 },
-      { score: 39, frequency: 0.35 },
-      { score: 40, frequency: 0.17 },
-      { score: 41, frequency: 1.16 },
-      { score: 42, frequency: 0.3 },
-      { score: 43, frequency: 0.2 },
-      { score: 44, frequency: 0.1 },
-      { score: 45, frequency: 0.05 },
     ];
 
-    // Generate one score for each team independently
-    const homeScore = this.getWeightedRandomScore(scoreDistribution, random);
-    const awayScore = this.getWeightedRandomScore(scoreDistribution, random);
+    // Generate one score for each team independently with different seeds
+    const homeScore = this.getWeightedRandomScore(scoreDistribution, this.getSeededRandom(seed));
+    const awayScore = this.getWeightedRandomScore(scoreDistribution, this.getSeededRandom(seed ? seed + 5000 : undefined));
 
-    // Ensure the winning team has the higher score and cap at 55
+    // Ensure the winning team has the higher score and cap at 30
     const isHomeTeamWinning = winningTeamId === homeTeamId;
     
     if (isHomeTeamWinning) {
       return {
-        homeScore: Math.min(Math.max(homeScore, awayScore + 1), 55),
-        awayScore: Math.min(awayScore, 55)
+        homeScore: Math.min(Math.max(homeScore, awayScore + 1), 30),
+        awayScore: Math.min(awayScore, 30)
       };
     } else {
       return {
-        homeScore: Math.min(homeScore, 55),
-        awayScore: Math.min(Math.max(awayScore, homeScore + 1), 55)
+        homeScore: Math.min(homeScore, 30),
+        awayScore: Math.min(Math.max(awayScore, homeScore + 1), 30)
       };
     }
   }
@@ -327,8 +317,8 @@ export class GameResolver {
   private static generateRandomGame(homeTeamId: string, awayTeamId: string, seed?: number): GameResolution {
     const random = this.getSeededRandom(seed);
     
-    const homeScore = Math.round(this.BASE_SCORE_RANGE.min + random() * (this.BASE_SCORE_RANGE.max - this.BASE_SCORE_RANGE.min));
-    const awayScore = Math.round(this.BASE_SCORE_RANGE.min + random() * (this.BASE_SCORE_RANGE.max - this.BASE_SCORE_RANGE.min));
+    const homeScore = Math.min(Math.round(this.BASE_SCORE_RANGE.min + random() * (this.BASE_SCORE_RANGE.max - this.BASE_SCORE_RANGE.min)), 30);
+    const awayScore = Math.min(Math.round(this.BASE_SCORE_RANGE.min + random() * (this.BASE_SCORE_RANGE.max - this.BASE_SCORE_RANGE.min)), 30);
     
     return {
       homeScore,

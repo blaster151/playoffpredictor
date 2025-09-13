@@ -2,9 +2,9 @@ import { SavedSchedule } from './scheduleSaver';
 
 // Data management configuration
 const CONFIG = {
-  DEBOUNCE_DELAY: 1000, // 1 second debounce
+  DEBOUNCE_DELAY: 2000, // 2 seconds debounce (increased from 1 second)
   BACKUP_INTERVAL: 30000, // 30 seconds
-  MAX_BACKUPS: 5, // Keep 5 backups
+  MAX_BACKUPS: 2, // Keep only 2 backups to save space
   STORAGE_KEYS: {
     SCHEDULES: 'nfl_schedules',
     SCHEDULES_BACKUP: 'nfl_schedules_backup',
@@ -13,6 +13,7 @@ const CONFIG = {
     SAVE_ERRORS: 'nfl_save_errors',
   },
   ERROR_THRESHOLD: 3, // Number of consecutive errors before switching to backup
+  MAX_BACKUP_SIZE: 1024 * 1024, // 1MB max backup size
 };
 
 // Error tracking
@@ -57,7 +58,18 @@ class DataManager {
     this.validateStorage();
     this.isInitialized = true;
     
-    console.log('🛡️ Data Manager initialized with backup protection');
+    console.log('🛡️ Data Manager initialized');
+  }
+
+  /**
+   * Immediate save function (bypasses debouncing)
+   */
+  immediateSave<T>(
+    key: string,
+    data: T,
+    operation: string = 'save'
+  ): Promise<boolean> {
+    return this.saveData(key, data, operation);
   }
 
   /**
@@ -77,18 +89,39 @@ class DataManager {
       // Set new timeout
       this.saveTimeout = setTimeout(async () => {
         try {
-          // Check if data has actually changed
+          // Check if data has actually changed (more efficient comparison)
           const currentData = this.loadData(key);
-          const hasChanged = JSON.stringify(currentData) !== JSON.stringify(data);
+          let hasChanged = false;
           
-          const success = await this.saveData(key, data, operation);
-          
-          // Only emit auto-save event if data actually changed
-          if (success && hasChanged) {
-            this.emit('autoSave', { operation, key, timestamp: Date.now(), hasChanged: true });
+          if (!currentData) {
+            hasChanged = true;
+          } else {
+            // Quick check: compare data sizes first
+            const currentSize = JSON.stringify(currentData).length;
+            const newSize = JSON.stringify(data).length;
+            
+            if (currentSize !== newSize) {
+              hasChanged = true;
+            } else {
+              // Only do deep comparison if sizes match
+              hasChanged = JSON.stringify(currentData) !== JSON.stringify(data);
+            }
           }
           
-          resolve(success);
+          // Only save if data has actually changed
+          if (hasChanged) {
+            const success = await this.saveData(key, data, operation);
+            
+            if (success) {
+              this.emit('autoSave', { operation, key, timestamp: Date.now(), hasChanged: true });
+            }
+            
+            resolve(success);
+          } else {
+            // Data hasn't changed, no need to save
+            console.log('💾 Skipping save - no changes detected');
+            resolve(true);
+          }
         } catch (error) {
           console.error('Debounced save failed:', error);
           resolve(false);
@@ -182,6 +215,13 @@ class DataManager {
         version: '1.0',
       };
 
+      // Check backup size before saving
+      const backupSize = JSON.stringify(backup).length;
+      if (backupSize > CONFIG.MAX_BACKUP_SIZE) {
+        console.warn(`⚠️ Backup too large (${backupSize} bytes), skipping backup creation`);
+        return;
+      }
+
       // Save immediate backup
       localStorage.setItem(`${key}_backup`, JSON.stringify(backup));
 
@@ -194,7 +234,16 @@ class DataManager {
         history.splice(0, history.length - CONFIG.MAX_BACKUPS);
       }
 
-      localStorage.setItem(`${key}_backup_history`, JSON.stringify(history));
+      // Check total history size before saving
+      const historySize = JSON.stringify(history).length;
+      if (historySize > CONFIG.MAX_BACKUP_SIZE) {
+        console.warn(`⚠️ Backup history too large (${historySize} bytes), clearing old backups`);
+        // Keep only the most recent backup
+        const recentBackup = history[history.length - 1];
+        localStorage.setItem(`${key}_backup_history`, JSON.stringify([recentBackup]));
+      } else {
+        localStorage.setItem(`${key}_backup_history`, JSON.stringify(history));
+      }
 
     } catch (error) {
       console.error('Backup creation failed:', error);

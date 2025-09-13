@@ -1,4 +1,4 @@
-import { Team, Game } from '../types/nfl';
+import { Team, Game, Week, Season } from '../types/nfl';
 
 // Try to load generated data, fall back to static data
 export async function loadLocalTeams(): Promise<Team[]> {
@@ -13,6 +13,27 @@ export async function loadLocalSchedule(year: string = '2025'): Promise<Game[]> 
   // Fallback to static data
   const { week1Games } = await import('../data/nflData');
   return week1Games;
+}
+
+// New function to load schedule in the format expected by components
+export async function loadLocalScheduleStructured(year: string = '2025'): Promise<{
+  weeks: { [weekNumber: number]: { games: Game[] } };
+  teams: Team[];
+}> {
+  const { week1Games, teams } = await import('../data/nflData');
+  
+  // Create a structured schedule with all 18 weeks
+  const weeks: { [weekNumber: number]: { games: Game[] } } = {};
+  
+  // Week 1 has the actual games
+  weeks[1] = { games: week1Games };
+  
+  // Weeks 2-18 are empty (no games scheduled yet)
+  for (let week = 2; week <= 18; week++) {
+    weeks[week] = { games: [] };
+  }
+  
+  return { weeks, teams };
 }
 
 export async function loadLocalRoster(teamId: string): Promise<any[]> {

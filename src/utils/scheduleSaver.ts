@@ -119,7 +119,19 @@ export class ScheduleSaver {
   static loadAllSchedules(): SavedSchedule[] {
     try {
       const schedules = dataManager.loadData<SavedSchedule[]>(this.STORAGE_KEY);
-      return schedules || [];
+      
+      // Ensure we always return an array
+      if (!schedules) {
+        console.log('No schedules found in storage, returning empty array');
+        return [];
+      }
+      
+      if (!Array.isArray(schedules)) {
+        console.error('Schedules data is not an array:', typeof schedules, schedules);
+        return [];
+      }
+      
+      return schedules;
     } catch (error) {
       console.error('Error loading schedules:', error);
       return [];

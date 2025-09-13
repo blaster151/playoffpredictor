@@ -91,19 +91,25 @@ export function chooseHomeTeam(teamA: string, teamB: string, year: number): stri
   return combined % 2 === 0 ? teamA : teamB;
 }
 
-// Helper function to find team with specific rank in division
+// Helper function to find team with specific rank in division (excluding the calling team)
 export function findTeamWithRank(
   division: string, 
   rank: number, 
   divisions: { [key: string]: string[] },
-  priorYearStandings: PriorYearStandings
+  priorYearStandings: PriorYearStandings,
+  excludeTeam?: string
 ): string | null {
   const teamsInDivision = divisions[division] || [];
   
-  // Find teams with the specified rank
+  // Find teams with the specified rank, excluding the calling team
   const teamsWithRank = teamsInDivision.filter(teamId => 
-    priorYearStandings[teamId] === rank
+    priorYearStandings[teamId] === rank && teamId !== excludeTeam
   );
+  
+  // Debug: Log what's happening
+  if (teamsWithRank.length > 1) {
+    console.error(`⚠️ Multiple teams with rank ${rank} in division ${division}:`, teamsWithRank);
+  }
   
   // If multiple teams have the same rank, choose the first one
   // In a real implementation, you might want more sophisticated tiebreaking
@@ -123,11 +129,35 @@ export function notAlreadyScheduled(
 }
 
 // Helper function to get extra game division for the year
-export function getExtraGameDivision(year: number, conference: string): string {
+export function getExtraGameDivision(year: number, conference: string, teamDivision: string): string {
+  // For 2025 (Year 3), the 17th game rotation is:
+  // AFC North vs NFC West, AFC South vs NFC North, AFC East vs NFC South, AFC West vs NFC East
+  if (year === 2025) {
+    if (conference === 'AFC') {
+      // AFC teams play NFC teams based on their division
+      switch (teamDivision) {
+        case 'North': return 'West';  // AFC North vs NFC West
+        case 'South': return 'North'; // AFC South vs NFC North
+        case 'East': return 'South';  // AFC East vs NFC South
+        case 'West': return 'East';   // AFC West vs NFC East
+        default: return 'West';
+      }
+    } else {
+      // NFC teams play AFC teams based on their division
+      switch (teamDivision) {
+        case 'North': return 'South'; // NFC North vs AFC South
+        case 'South': return 'East';  // NFC South vs AFC East
+        case 'East': return 'West';   // NFC East vs AFC West
+        case 'West': return 'North';  // NFC West vs AFC North
+        default: return 'North';
+      }
+    }
+  }
+  
+  // Fallback for other years
   const rotationIndex = (year - 1) % EXTRA_GAME_ROTATION.length;
   const rotation = EXTRA_GAME_ROTATION[rotationIndex];
   
-  // Find the division for the given conference
   const conferencePrefix = conference === 'AFC' ? 'AFC_' : 'NFC_';
   const divisions = ['North', 'South', 'East', 'West'];
   
@@ -138,7 +168,6 @@ export function getExtraGameDivision(year: number, conference: string): string {
     }
   }
   
-  // Fallback
   return 'North';
 }
 
@@ -169,111 +198,171 @@ export function generateMatchups(config: ScheduleConfig): Matchup[] {
   const { teams, divisions, conferences, rotationYear, priorYearStandings } = config;
   const matchups: Matchup[] = [];
 
-  // ------------------------------------------------
-  // STEP 1: Division games (6 games per team)
-  // ------------------------------------------------
-  for (const [divisionName, teamsInDiv] of Object.entries(divisions)) {
-    for (let i = 0; i < teamsInDiv.length; i++) {
-      for (let j = i + 1; j < teamsInDiv.length; j++) {
-        const team1 = teamsInDiv[i];
-        const team2 = teamsInDiv[j];
-        
-        // Home and away games for each division opponent
-        matchups.push({ home: team1, away: team2 });
-        matchups.push({ home: team2, away: team1 });
-      }
-    }
-  }
+     // ------------------------------------------------
+   // STEP 1: Division games (6 games per team)
+   // ------------------------------------------------
+   let divisionGameCount = 0;
+   for (const [divisionName, teamsInDiv] of Object.entries(divisions)) {
+     console.log(`🔍 Division ${divisionName}: ${teamsInDiv.length} teams`);
+     for (let i = 0; i < teamsInDiv.length; i++) {
+       for (let j = i + 1; j < teamsInDiv.length; j++) {
+         const team1 = teamsInDiv[i];
+         const team2 = teamsInDiv[j];
+         
+         // Home and away games for each division opponent
+         matchups.push({ home: team1, away: team2 });
+         matchups.push({ home: team2, away: team1 });
+         divisionGameCount += 2;
+       }
+     }
+   }
+   console.log(`🔍 Division games generated: ${divisionGameCount}`);
 
-  // ------------------------------------------------
-  // STEP 2: Intra-conference, inter-division games (4 games per team - 2 home, 2 away)
-  // ------------------------------------------------
-  for (const [conferenceName, divisionsInConf] of Object.entries(conferences)) {
-    const intraMatchups = getIntraConferenceRotation(rotationYear, divisionsInConf);
-    
-    for (const [divA, divB] of intraMatchups) {
-      const teamsInDivA = divisions[divA] || [];
-      const teamsInDivB = divisions[divB] || [];
+     // ------------------------------------------------
+   // STEP 2: Intra-conference, inter-division games (4 games per team - 2 home, 2 away)
+   // ------------------------------------------------
+   let intraConferenceGameCount = 0;
+   for (const [conferenceName, divisionsInConf] of Object.entries(conferences)) {
+     // Convert full division names to short names for rotation lookup
+     const shortDivisions = divisionsInConf.map(div => div.replace(`${conferenceName}_`, ''));
+     const intraMatchups = getIntraConferenceRotation(rotationYear, shortDivisions);
+     
+     console.log(`🔍 Conference ${conferenceName}: shortDivisions=${shortDivisions}, intraMatchups=${JSON.stringify(intraMatchups)}`);
+     
+     for (const [divA, divB] of intraMatchups) {
+       const fullDivA = `${conferenceName}_${divA}`;
+       const fullDivB = `${conferenceName}_${divB}`;
+       const teamsInDivA = divisions[fullDivA] || [];
+       const teamsInDivB = divisions[fullDivB] || [];
+       
+              for (const teamA of teamsInDivA) {
+          for (const teamB of teamsInDivB) {
+            // Create only one direction per year (NFL rotation determines home/away)
+            const homeTeam = chooseHomeTeam(teamA, teamB, rotationYear);
+            const awayTeam = otherOne(homeTeam, teamA, teamB);
+            matchups.push({ home: homeTeam, away: awayTeam });
+            intraConferenceGameCount++;
+          }
+        }
+     }
+   }
+   console.log(`🔍 Intra-conference games generated: ${intraConferenceGameCount}`);
+
+     // ------------------------------------------------
+   // STEP 3: Inter-conference games (4 games per team - 2 home, 2 away)
+   // ------------------------------------------------
+      // Each team plays all 4 teams from one division in the other conference
+    const interMatchups = getInterConferenceRotation(rotationYear);
+    console.log(`🔍 Inter-conference matchups for year ${rotationYear}:`, interMatchups);
+   
+    let interConferenceGameCount = 0;
+      // Use all division pairs for inter-conference games
+    for (const [nfcDiv, afcDiv] of interMatchups) {
+      const nfcTeams = divisions[nfcDiv] || [];
+      const afcTeams = divisions[afcDiv] || [];
       
-      for (const teamA of teamsInDivA) {
-        for (const teamB of teamsInDivB) {
-          // Create both home and away games to ensure 2 home, 2 away for each team
-          matchups.push({ home: teamA, away: teamB });
-          matchups.push({ home: teamB, away: teamA });
+      for (const nfcTeam of nfcTeams) {
+        for (const afcTeam of afcTeams) {
+          // Create only one direction per year (NFL rotation determines home/away)
+          const homeTeam = chooseHomeTeam(nfcTeam, afcTeam, rotationYear);
+          const awayTeam = otherOne(homeTeam, nfcTeam, afcTeam);
+          matchups.push({ home: homeTeam, away: awayTeam });
+          interConferenceGameCount++;
         }
       }
     }
-  }
+    console.log(`🔍 Inter-conference games generated: ${interConferenceGameCount}`);
 
-  // ------------------------------------------------
-  // STEP 3: Inter-conference games (4 games per team - 2 home, 2 away)
-  // ------------------------------------------------
-  // Each team plays all 4 teams from one division in the other conference
-  const interMatchups = getInterConferenceRotation(rotationYear);
-  
-  // Only use the first division pair for this year (each team plays 4 games vs one division)
-  if (interMatchups.length > 0) {
-    const [nfcDiv, afcDiv] = interMatchups[0]; // Only use first division pair
-    const nfcTeams = divisions[nfcDiv] || [];
-    const afcTeams = divisions[afcDiv] || [];
-    
-    for (const nfcTeam of nfcTeams) {
-      for (const afcTeam of afcTeams) {
-        // Create both home and away games to ensure 2 home, 2 away for each team
-        matchups.push({ home: nfcTeam, away: afcTeam });
-        matchups.push({ home: afcTeam, away: nfcTeam });
-      }
-    }
-  }
+     // ------------------------------------------------
+   // STEP 4: Same-place finishers (2 games)
+   // ------------------------------------------------
+   let samePlaceGameCount = 0;
+   for (const team of teams) {
+     const conference = getConference(team.id, teams);
+     const myDivision = getDivision(team.id, teams);
+     const myRank = priorYearStandings[team.id];
+     const otherDivisions = (conferences[conference] || []).filter(div => div !== myDivision);
 
-  // ------------------------------------------------
-  // STEP 4: Same-place finishers (2 games)
-  // ------------------------------------------------
-  for (const team of teams) {
-    const conference = getConference(team.id, teams);
-    const myDivision = getDivision(team.id, teams);
-    const myRank = priorYearStandings[team.id];
-    const otherDivisions = (conferences[conference] || []).filter(div => div !== myDivision);
+     for (const otherDiv of otherDivisions) {
+       const opponent = findTeamWithRank(otherDiv, myRank, divisions, priorYearStandings, team.id);
+       
+       if (opponent && notAlreadyScheduled(team.id, opponent, matchups)) {
+         const homeTeam = chooseHomeTeam(team.id, opponent, rotationYear);
+         const awayTeam = otherOne(homeTeam, team.id, opponent);
+         
+         matchups.push({ home: homeTeam, away: awayTeam });
+         samePlaceGameCount++;
+       }
+     }
+   }
+   console.log(`🔍 Same-place finisher games generated: ${samePlaceGameCount}`);
 
-    for (const otherDiv of otherDivisions) {
-      const opponent = findTeamWithRank(otherDiv, myRank, divisions, priorYearStandings);
+     // ------------------------------------------------
+   // STEP 5: 17th game (extra inter-conference, same-place finisher)
+   // ------------------------------------------------
+   let extraGameCount = 0;
+   const teamsNeedingExtraGame = new Set<string>();
+   
+   // Only generate 17th game for teams that don't have enough games yet
+   for (const team of teams) {
+     const teamGames = matchups.filter(m => m.home === team.id || m.away === team.id).length;
+     if (teamGames < 17) {
+       teamsNeedingExtraGame.add(team.id);
+     }
+   }
+   
+   console.log(`🔍 Teams needing extra game: ${teamsNeedingExtraGame.size}`);
+   
+   for (const teamId of Array.from(teamsNeedingExtraGame)) {
+     const team = teams.find(t => t.id === teamId);
+     if (!team) continue;
+     
+           const myRank = priorYearStandings[teamId];
+      const myConference = getConference(teamId, teams);
+      const myDivision = getDivision(teamId, teams);
+      const otherConference = getOtherConference(myConference);
+      const targetDivision = getExtraGameDivision(rotationYear, myConference, myDivision);
       
-      if (opponent && notAlreadyScheduled(team.id, opponent, matchups)) {
-        const homeTeam = chooseHomeTeam(team.id, opponent, rotationYear);
-        const awayTeam = otherOne(homeTeam, team.id, opponent);
-        
-        matchups.push({ home: homeTeam, away: awayTeam });
-      }
-    }
-  }
-
-  // ------------------------------------------------
-  // STEP 5: 17th game (extra inter-conference, same-place finisher)
-  // ------------------------------------------------
-  for (const team of teams) {
-    const myRank = priorYearStandings[team.id];
-    const myConference = getConference(team.id, teams);
-    const otherConference = getOtherConference(myConference);
-    const targetDivision = getExtraGameDivision(rotationYear, myConference);
-    
-    // Find the full division name for the other conference
-    const fullTargetDivision = `${otherConference}_${targetDivision}`;
-    const opponent = findTeamWithRank(fullTargetDivision, myRank, divisions, priorYearStandings);
-    
-    if (opponent && notAlreadyScheduled(team.id, opponent, matchups)) {
-      const homeTeam = chooseHomeTeam(team.id, opponent, rotationYear);
-      const awayTeam = otherOne(homeTeam, team.id, opponent);
-      
-      matchups.push({ home: homeTeam, away: awayTeam });
-    }
-  }
+      // Find the full division name for the other conference
+      const fullTargetDivision = `${otherConference}_${targetDivision}`;
+     const opponent = findTeamWithRank(fullTargetDivision, myRank, divisions, priorYearStandings, teamId);
+     
+     if (opponent && notAlreadyScheduled(teamId, opponent, matchups)) {
+       const homeTeam = chooseHomeTeam(teamId, opponent, rotationYear);
+       const awayTeam = otherOne(homeTeam, teamId, opponent);
+       
+       matchups.push({ home: homeTeam, away: awayTeam });
+       extraGameCount++;
+     }
+   }
+   console.log(`🔍 Extra 17th games generated: ${extraGameCount}`);
 
   // Log matchup statistics for validation
-  const divisionGames = matchups.filter(m => {
-    const homeTeam = teams.find(t => t.id === m.home);
-    const awayTeam = teams.find(t => t.id === m.away);
-    return homeTeam && awayTeam && homeTeam.division === awayTeam.division;
-  }).length;
+  console.log('🔍 Generated matchups:', matchups.length);
+  
+  // Check for self-matchups
+  const selfMatchups = matchups.filter(m => m.home === m.away);
+  if (selfMatchups.length > 0) {
+    console.error('❌ Found self-matchups:', selfMatchups);
+    console.error('❌ Self-matchup details:');
+    selfMatchups.forEach((matchup, index) => {
+      const team = teams.find(t => t.id === matchup.home);
+      console.error(`   ${index + 1}. ${matchup.home} vs ${matchup.away} (${team?.conference}_${team?.division}, rank: ${priorYearStandings[matchup.home]})`);
+    });
+  }
+  
+  // Debug: Log the rotation year and what divisions we're working with
+  console.log('🔍 Rotation year:', rotationYear);
+  console.log('🔍 Divisions:', Object.keys(divisions));
+  console.log('🔍 Conferences:', Object.keys(conferences));
+  
+     const divisionGames = matchups.filter(m => {
+     const homeTeam = teams.find(t => t.id === m.home);
+     const awayTeam = teams.find(t => t.id === m.away);
+     return homeTeam && awayTeam && 
+            homeTeam.conference === awayTeam.conference && 
+            homeTeam.division === awayTeam.division;
+   }).length;
   
   const intraConferenceGames = matchups.filter(m => {
     const homeTeam = teams.find(t => t.id === m.home);

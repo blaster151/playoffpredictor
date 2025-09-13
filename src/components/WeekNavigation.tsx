@@ -3,9 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 interface WeekNavigationProps {
   currentWeek: number;
   onWeekChange: (week: number) => void;
-  onUpdate: () => void;
   onRegenerateSchedule?: () => void;
   isGeneratingSchedule?: boolean;
+  isRegularSeasonComplete?: boolean;
 }
 
 // NFL 2025 season week dates (approximate)
@@ -37,9 +37,9 @@ const WEEK_DATES = [
 const WeekNavigation: React.FC<WeekNavigationProps> = ({ 
   currentWeek, 
   onWeekChange, 
-  onUpdate,
   onRegenerateSchedule,
-  isGeneratingSchedule = false
+  isGeneratingSchedule = false,
+  isRegularSeasonComplete = false
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -81,50 +81,72 @@ const WeekNavigation: React.FC<WeekNavigationProps> = ({
           </button>
           
           {showDropdown && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-64">
+            <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-50 min-w-64">
               <div className="py-2">
-                {WEEK_DATES.map((weekData) => (
-                  <button
-                    key={weekData.week}
-                    onClick={() => {
-                      onWeekChange(weekData.week);
-                      setShowDropdown(false);
-                    }}
-                    className={`w-full text-left px-4 py-2 hover:bg-gray-100 transition-colors ${
-                      currentWeek === weekData.week 
-                        ? 'bg-blue-50 text-blue-600 font-medium' 
-                        : 'text-gray-700'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">Week {weekData.week}</span>
-                      <span className="text-sm text-gray-500">{weekData.start} - {weekData.end}</span>
-                    </div>
-                  </button>
-                ))}
+                {WEEK_DATES.map((weekData) => {
+                  const isPostseasonWeek = weekData.week >= 19;
+                  const isDisabled = isPostseasonWeek && !isRegularSeasonComplete;
+                  
+                  return (
+                    <button
+                      key={weekData.week}
+                      onClick={() => {
+                        if (!isDisabled) {
+                          onWeekChange(weekData.week);
+                          setShowDropdown(false);
+                        }
+                      }}
+                      disabled={isDisabled}
+                      className={`w-full text-left px-4 py-2 transition-colors ${
+                        isDisabled 
+                          ? 'text-gray-400 cursor-not-allowed bg-gray-50 dark:bg-gray-700' 
+                          : currentWeek === weekData.week 
+                            ? 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-100 dark:hover:bg-blue-800' 
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">
+                          Week {weekData.week}
+                          {isDisabled && <span className="ml-2 text-xs">(🔒 Locked)</span>}
+                        </span>
+                        <span className={`text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {weekData.start} - {weekData.end}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
         
         <button 
-          className={`btn ${currentWeek === WEEK_DATES.length ? 'btn-secondary opacity-50 cursor-not-allowed' : 'btn-secondary'}`}
-          onClick={() => onWeekChange(Math.min(WEEK_DATES.length, currentWeek + 1))}
-          disabled={currentWeek === WEEK_DATES.length}
+          className={`btn ${
+            currentWeek === WEEK_DATES.length || 
+            (currentWeek === 18 && !isRegularSeasonComplete) ||
+            (currentWeek < 18 && currentWeek + 1 >= 19 && !isRegularSeasonComplete)
+              ? 'btn-secondary opacity-50 cursor-not-allowed' 
+              : 'btn-secondary'
+          }`}
+          onClick={() => {
+            const nextWeek = currentWeek + 1;
+            if (nextWeek >= 19 && !isRegularSeasonComplete) {
+              return; // Don't allow navigation to postseason
+            }
+            onWeekChange(Math.min(WEEK_DATES.length, nextWeek));
+          }}
+          disabled={
+            currentWeek === WEEK_DATES.length || 
+            (currentWeek === 18 && !isRegularSeasonComplete) ||
+            (currentWeek < 18 && currentWeek + 1 >= 19 && !isRegularSeasonComplete)
+          }
         >
           Next ►
         </button>
         
-        <button 
-          className="btn btn-primary"
-          onClick={onUpdate}
-        >
-          🔄 Update
-        </button>
-        
-        <button className="btn btn-secondary">
-          ⋯ More
-        </button>
+
       </div>
 
       {/* Right-justified Regenerate Schedule button */}
