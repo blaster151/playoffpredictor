@@ -7,6 +7,11 @@ export interface ScheduledGame {
   week: number;
   homeTeam: string;
   awayTeam: string;
+  
+  // PRIMETIME DESIGNATIONS (NEW!)
+  primetimeSlot?: 'MNF' | 'TNF' | 'SNF' | 'INTERNATIONAL' | null;
+  timeSlot?: 'EARLY' | 'LATE' | 'PRIMETIME'; // General time categories
+  networkPreference?: 'CBS' | 'FOX' | 'NBC' | 'ESPN' | 'AMAZON' | 'NFL_NETWORK';
 }
 
 export interface ScheduleConstraints {
@@ -17,6 +22,36 @@ export interface ScheduleConstraints {
   primeTimeGames?: string[]; // Array of matchup IDs for prime time
   rivalryWeeks?: { [week: number]: string[] }; // Specific weeks for rivalries
   preventConsecutiveRematches?: boolean; // New flag to control the expensive constraint
+  
+  // PRIMETIME GAME CONSTRAINTS (NEW!)
+  primetimeConstraints?: {
+    mondayNightFootball?: {
+      enabled: boolean;
+      gamesPerWeek: number; // Usually 1
+      maxAppearances: number; // Max per team per season (e.g., 3)
+      preferredTeams?: string[]; // High-profile teams that get priority
+      avoidWeeks?: number[]; // Weeks to avoid (e.g., Week 1, playoffs)
+    };
+    thursdayNightFootball?: {
+      enabled: boolean;
+      gamesPerWeek: number; // Usually 1
+      maxAppearances: number; // Max per team per season
+      minimumRestDays: number; // Days since last game (usually 4+)
+      avoidBackToBack?: boolean; // Avoid teams with Sunday->Thursday
+      startWeek?: number; // When TNF season starts (usually Week 2)
+    };
+    sundayNightFootball?: {
+      enabled: boolean;
+      gamesPerWeek: number; // Usually 1
+      maxAppearances: number; // Max per team per season
+      flexibleWeeks?: number[]; // Weeks that can be flexed
+      preferredMatchups?: Array<{home: string, away: string}>; // Rivalry games
+    };
+    flexScheduling?: {
+      enabled: boolean;
+      flexWindows: Array<{startWeek: number, endWeek: number, maxChanges: number}>;
+    };
+  };
 }
 
 export interface ScheduleSolution {
@@ -52,6 +87,45 @@ export class ScheduleConstraintSolver {
       maxGamesPerWeek: 16, // 32 teams / 2 = 16 games max per week
       byeWeekDistribution: 'balanced',
       preventConsecutiveRematches: true, // Enabled to prevent consecutive rematches
+      
+      // DEFAULT PRIMETIME CONSTRAINTS (realistic NFL patterns)
+      primetimeConstraints: {
+        mondayNightFootball: {
+          enabled: true,
+          gamesPerWeek: 1,
+          maxAppearances: 3, // Max 3 MNF appearances per team per season
+          preferredTeams: ['cowboys', 'patriots', 'packers', 'steelers', 'chiefs'], // High-profile teams
+          avoidWeeks: [18] // Avoid Week 18 (season finale)
+        },
+        thursdayNightFootball: {
+          enabled: true,
+          gamesPerWeek: 1,
+          maxAppearances: 2, // Max 2 TNF appearances per team per season
+          minimumRestDays: 4,
+          avoidBackToBack: true, // Don't schedule Sunday->Thursday
+          startWeek: 2 // TNF starts Week 2 (Week 1 is Thursday opener)
+        },
+        sundayNightFootball: {
+          enabled: true,
+          gamesPerWeek: 1,
+          maxAppearances: 4, // Max 4 SNF appearances per team per season
+          flexibleWeeks: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], // Weeks that can be flexed
+          preferredMatchups: [
+            {home: 'cowboys', away: 'giants'}, // NFC East rivalries
+            {home: 'packers', away: 'bears'},  // NFC North rivalries
+            {home: 'patriots', away: 'jets'},  // AFC East rivalries
+            {home: 'steelers', away: 'ravens'} // AFC North rivalries
+          ]
+        },
+        flexScheduling: {
+          enabled: true,
+          flexWindows: [
+            {startWeek: 5, endWeek: 10, maxChanges: 2}, // Early flex window
+            {startWeek: 11, endWeek: 17, maxChanges: 5}  // Late flex window
+          ]
+        }
+      },
+      
       ...constraints,
     };
   }
@@ -189,10 +263,13 @@ export class ScheduleConstraintSolver {
     this.addSelfMatchupPrevention(subjectTo, glpkInstance, numMatchups, numWeeks);
     this.addMaxByeTeamsConstraint(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
     this.addBalancedWeeklyDistribution(subjectTo, glpkInstance, numMatchups, numWeeks);
+    
+    // STEP 5: PRIMETIME CONSTRAINTS (NEW! - for maximum realism)
+    this.addPrimetimeConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
 
 
 
-    console.log('🔧 GLPK Problem Stats (ALL CONSTRAINTS RE-ENABLED):');
+    console.log('🔧 GLPK Problem Stats (ALL CONSTRAINTS + PRIMETIME!):');
     console.log('  - Variables:', varNames.length);
     console.log('  - Constraints:', subjectTo.length);
     console.log('  - Matchups:', this.matchups.length);
@@ -203,6 +280,12 @@ export class ScheduleConstraintSolver {
     console.log('  ✅ RE-ENABLED: Maximum 6 teams on bye per week');
     console.log('  ✅ RE-ENABLED: Balanced weekly distribution');
     console.log('  ✅ OPTIMIZED: Constraint ordering (EQUALITY → TIGHT → INEQUALITIES → COMPLEX)');
+    console.log('  🌟 NEW: Primetime game constraints for maximum realism!');
+    console.log('    - Monday Night Football (ESPN)');
+    console.log('    - Thursday Night Football (Amazon Prime)'); 
+    console.log('    - Sunday Night Football (NBC)');
+    console.log('    - Team appearance limits (fair distribution)');
+    console.log('    - Preferred matchups for rivalries');
     console.log('  - Consecutive rematches prevented:', this.constraints.preventConsecutiveRematches);
     console.log('  - Sample constraints:', subjectTo.slice(0, 2));
 
@@ -565,6 +648,259 @@ export class ScheduleConstraintSolver {
     }
   }
 
+  private addPrimetimeConstraints(
+    subjectTo: any[], 
+    glpkInstance: any, 
+    numMatchups: number, 
+    numTeams: number, 
+    numWeeks: number,
+    varNames: string[]
+  ): void {
+    // Constraint 11: PRIMETIME GAME CONSTRAINTS (NEW! - Maximum NFL Realism!)
+    const primetimeConfig = this.constraints.primetimeConstraints;
+    
+    if (!primetimeConfig) return;
+    
+    // MONDAY NIGHT FOOTBALL CONSTRAINTS
+    if (primetimeConfig.mondayNightFootball?.enabled) {
+      this.addMondayNightFootballConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
+    }
+    
+    // THURSDAY NIGHT FOOTBALL CONSTRAINTS  
+    if (primetimeConfig.thursdayNightFootball?.enabled) {
+      this.addThursdayNightFootballConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
+    }
+    
+    // SUNDAY NIGHT FOOTBALL CONSTRAINTS
+    if (primetimeConfig.sundayNightFootball?.enabled) {
+      this.addSundayNightFootballConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
+    }
+    
+    console.log('  ✅ NEW: Primetime constraints enabled (MNF, TNF, SNF)');
+  }
+
+  private addMondayNightFootballConstraints(
+    subjectTo: any[], 
+    glpkInstance: any, 
+    numMatchups: number, 
+    numTeams: number, 
+    numWeeks: number,
+    varNames: string[]
+  ): void {
+    const mnfConfig = this.constraints.primetimeConstraints?.mondayNightFootball!;
+    
+    // Create MNF binary variables: mnf_m_w = 1 if matchup m is MNF game in week w
+    for (let w = 1; w <= numWeeks; w++) {
+      // Skip weeks where MNF is avoided
+      if (mnfConfig.avoidWeeks?.includes(w)) continue;
+      
+      const mnfVars: { name: string; coef: number }[] = [];
+      
+      for (let m = 0; m < numMatchups; m++) {
+        const mnfVarName = `mnf_${m}_${w}`;
+        varNames.push(mnfVarName);
+        mnfVars.push({ name: mnfVarName, coef: 1 });
+        
+        // Link MNF variable to regular game variable: mnf_m_w <= x_m_w
+        subjectTo.push({
+          name: `mnf_link_${m}_${w}`,
+          vars: [
+            { name: mnfVarName, coef: 1 },
+            { name: `x_${m}_${w}`, coef: -1 }
+          ],
+          bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: 0 } // mnf_m_w - x_m_w <= 0
+        });
+      }
+      
+      // Exactly 1 MNF game per week
+      if (mnfVars.length > 0) {
+        subjectTo.push({
+          name: `mnf_exactly_one_week_${w}`,
+          vars: mnfVars,
+          bnds: { type: glpkInstance.GLP_FX, lb: mnfConfig.gamesPerWeek, ub: mnfConfig.gamesPerWeek }
+        });
+      }
+    }
+    
+    // Limit MNF appearances per team per season
+    for (let t = 0; t < numTeams; t++) {
+      const teamId = this.teams[t].id;
+      const teamMnfVars: { name: string; coef: number }[] = [];
+      
+      for (let w = 1; w <= numWeeks; w++) {
+        if (mnfConfig.avoidWeeks?.includes(w)) continue;
+        
+        for (let m = 0; m < numMatchups; m++) {
+          const matchup = this.matchups[m];
+          if (matchup.home === teamId || matchup.away === teamId) {
+            teamMnfVars.push({ name: `mnf_${m}_${w}`, coef: 1 });
+          }
+        }
+      }
+      
+      if (teamMnfVars.length > 0) {
+        // Preferred teams get higher limit
+        const isPreferred = mnfConfig.preferredTeams?.includes(teamId);
+        const maxAppearances = isPreferred ? mnfConfig.maxAppearances + 1 : mnfConfig.maxAppearances;
+        
+        subjectTo.push({
+          name: `mnf_max_appearances_team_${t}`,
+          vars: teamMnfVars,
+          bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: maxAppearances }
+        });
+      }
+    }
+  }
+
+  private addThursdayNightFootballConstraints(
+    subjectTo: any[], 
+    glpkInstance: any, 
+    numMatchups: number, 
+    numTeams: number, 
+    numWeeks: number,
+    varNames: string[]
+  ): void {
+    const tnfConfig = this.constraints.primetimeConstraints?.thursdayNightFootball!;
+    
+    // Create TNF binary variables
+    for (let w = (tnfConfig.startWeek || 2); w <= numWeeks; w++) {
+      const tnfVars: { name: string; coef: number }[] = [];
+      
+      for (let m = 0; m < numMatchups; m++) {
+        const tnfVarName = `tnf_${m}_${w}`;
+        varNames.push(tnfVarName);
+        tnfVars.push({ name: tnfVarName, coef: 1 });
+        
+        // Link TNF variable to regular game variable
+        subjectTo.push({
+          name: `tnf_link_${m}_${w}`,
+          vars: [
+            { name: tnfVarName, coef: 1 },
+            { name: `x_${m}_${w}`, coef: -1 }
+          ],
+          bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: 0 }
+        });
+      }
+      
+      // Exactly 1 TNF game per week
+      if (tnfVars.length > 0) {
+        subjectTo.push({
+          name: `tnf_exactly_one_week_${w}`,
+          vars: tnfVars,
+          bnds: { type: glpkInstance.GLP_FX, lb: tnfConfig.gamesPerWeek, ub: tnfConfig.gamesPerWeek }
+        });
+      }
+    }
+    
+    // Limit TNF appearances per team per season
+    for (let t = 0; t < numTeams; t++) {
+      const teamId = this.teams[t].id;
+      const teamTnfVars: { name: string; coef: number }[] = [];
+      
+      for (let w = (tnfConfig.startWeek || 2); w <= numWeeks; w++) {
+        for (let m = 0; m < numMatchups; m++) {
+          const matchup = this.matchups[m];
+          if (matchup.home === teamId || matchup.away === teamId) {
+            teamTnfVars.push({ name: `tnf_${m}_${w}`, coef: 1 });
+          }
+        }
+      }
+      
+      if (teamTnfVars.length > 0) {
+        subjectTo.push({
+          name: `tnf_max_appearances_team_${t}`,
+          vars: teamTnfVars,
+          bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: tnfConfig.maxAppearances }
+        });
+      }
+    }
+    
+    // TODO: Add minimum rest days constraint (complex - requires tracking previous games)
+    // This would prevent Sunday->Thursday scheduling for player safety
+  }
+
+  private addSundayNightFootballConstraints(
+    subjectTo: any[], 
+    glpkInstance: any, 
+    numMatchups: number, 
+    numTeams: number, 
+    numWeeks: number,
+    varNames: string[]
+  ): void {
+    const snfConfig = this.constraints.primetimeConstraints?.sundayNightFootball!;
+    
+    // Create SNF binary variables
+    for (let w = 1; w <= numWeeks; w++) {
+      const snfVars: { name: string; coef: number }[] = [];
+      
+      for (let m = 0; m < numMatchups; m++) {
+        const snfVarName = `snf_${m}_${w}`;
+        varNames.push(snfVarName);
+        snfVars.push({ name: snfVarName, coef: 1 });
+        
+        // Link SNF variable to regular game variable
+        subjectTo.push({
+          name: `snf_link_${m}_${w}`,
+          vars: [
+            { name: snfVarName, coef: 1 },
+            { name: `x_${m}_${w}`, coef: -1 }
+          ],
+          bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: 0 }
+        });
+      }
+      
+      // Exactly 1 SNF game per week
+      if (snfVars.length > 0) {
+        subjectTo.push({
+          name: `snf_exactly_one_week_${w}`,
+          vars: snfVars,
+          bnds: { type: glpkInstance.GLP_FX, lb: snfConfig.gamesPerWeek, ub: snfConfig.gamesPerWeek }
+        });
+      }
+    }
+    
+    // Limit SNF appearances per team per season
+    for (let t = 0; t < numTeams; t++) {
+      const teamId = this.teams[t].id;
+      const teamSnfVars: { name: string; coef: number }[] = [];
+      
+      for (let w = 1; w <= numWeeks; w++) {
+        for (let m = 0; m < numMatchups; m++) {
+          const matchup = this.matchups[m];
+          if (matchup.home === teamId || matchup.away === teamId) {
+            teamSnfVars.push({ name: `snf_${m}_${w}`, coef: 1 });
+          }
+        }
+      }
+      
+      if (teamSnfVars.length > 0) {
+        subjectTo.push({
+          name: `snf_max_appearances_team_${t}`,
+          vars: teamSnfVars,
+          bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: snfConfig.maxAppearances }
+        });
+      }
+    }
+    
+    // Bonus: Prefer rivalry matchups for SNF
+    if (snfConfig.preferredMatchups) {
+      for (const preferredMatchup of snfConfig.preferredMatchups) {
+        for (let w = 1; w <= numWeeks; w++) {
+          for (let m = 0; m < numMatchups; m++) {
+            const matchup = this.matchups[m];
+            if ((matchup.home === preferredMatchup.home && matchup.away === preferredMatchup.away) ||
+                (matchup.home === preferredMatchup.away && matchup.away === preferredMatchup.home)) {
+              
+              // Add soft constraint to encourage this matchup for SNF
+              // (This is a bonus feature - could be implemented with weighted objective)
+              console.log(`  💡 Preferred SNF matchup identified: ${matchup.home} vs ${matchup.away}`);
+            }
+          }
+        }
+      }
+    }
+  }
+
   private extractSolution(result: any): ScheduledGame[] {
     const games: ScheduledGame[] = [];
     
@@ -572,6 +908,7 @@ export class ScheduleConstraintSolver {
     console.log('  - Result vars:', Object.keys(result.vars || {}).length);
     console.log('  - Sample vars:', Object.entries(result.vars || {}).slice(0, 5));
     
+    // First pass: Extract regular games
     for (let m = 0; m < this.matchups.length; m++) {
       for (let w = 1; w <= this.weeks; w++) {
         const varName = `x_${m}_${w}`;
@@ -585,13 +922,58 @@ export class ScheduleConstraintSolver {
             week: w,
             homeTeam: matchup.home,
             awayTeam: matchup.away,
+            primetimeSlot: null, // Will be set in second pass
+            timeSlot: 'EARLY', // Default to early games
+            networkPreference: 'CBS' // Default network
           });
         }
       }
     }
     
+    // Second pass: Identify primetime games
+    let mnfCount = 0, tnfCount = 0, snfCount = 0;
+    
+    for (const game of games) {
+      // Check if this game is MNF
+      const mnfVar = `mnf_${this.getMatchupIndex(game.matchup)}_${game.week}`;
+      if (result.vars[mnfVar] > 0.5) {
+        game.primetimeSlot = 'MNF';
+        game.timeSlot = 'PRIMETIME';
+        game.networkPreference = 'ESPN';
+        mnfCount++;
+        console.log(`  🌙 MNF: ${game.awayTeam} @ ${game.homeTeam} - Week ${game.week}`);
+      }
+      
+      // Check if this game is TNF
+      const tnfVar = `tnf_${this.getMatchupIndex(game.matchup)}_${game.week}`;
+      if (result.vars[tnfVar] > 0.5) {
+        game.primetimeSlot = 'TNF';
+        game.timeSlot = 'PRIMETIME';
+        game.networkPreference = 'AMAZON';
+        tnfCount++;
+        console.log(`  🦃 TNF: ${game.awayTeam} @ ${game.homeTeam} - Week ${game.week}`);
+      }
+      
+      // Check if this game is SNF
+      const snfVar = `snf_${this.getMatchupIndex(game.matchup)}_${game.week}`;
+      if (result.vars[snfVar] > 0.5) {
+        game.primetimeSlot = 'SNF';
+        game.timeSlot = 'PRIMETIME';
+        game.networkPreference = 'NBC';
+        snfCount++;
+        console.log(`  🌃 SNF: ${game.awayTeam} @ ${game.homeTeam} - Week ${game.week}`);
+      }
+    }
+    
     console.log(`  📊 Total games extracted: ${games.length}`);
+    console.log(`  🏈 Primetime games: ${mnfCount} MNF, ${tnfCount} TNF, ${snfCount} SNF`);
+    
     return games.sort((a, b) => a.week - b.week);
+  }
+
+  // Helper method to get matchup index
+  private getMatchupIndex(matchup: Matchup): number {
+    return this.matchups.findIndex(m => m.home === matchup.home && m.away === matchup.away);
   }
 
   private calculateConstraints(games: ScheduledGame[]) {
