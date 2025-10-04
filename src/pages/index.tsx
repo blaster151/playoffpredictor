@@ -1004,10 +1004,18 @@ export default function Home() {
       console.log(`📋 Generated ${matchups.length} matchups`);
       
       // Create real GLPK solver with proper NFL constraints
+      // IMPORTANT: Primetime constraints disabled for performance
+      // With primetime enabled: 17,206 constraints (solver hangs)
+      // Without primetime: ~5,000 constraints (solver completes in seconds)
       const solver = createScheduleSolver(matchups, teams, 18, {
         maxGamesPerWeek: 18, // Allow more games per week
         byeWeekDistribution: 'balanced',
-        preventConsecutiveRematches: true // Enable to prevent consecutive rematches
+        preventConsecutiveRematches: true, // Enable to prevent consecutive rematches
+        primetimeConstraints: {
+          mondayNightFootball: { enabled: false, gamesPerWeek: 1, maxAppearances: 3 },
+          thursdayNightFootball: { enabled: false, gamesPerWeek: 1, maxAppearances: 2, minimumRestDays: 4, startWeek: 2 },
+          sundayNightFootball: { enabled: false, gamesPerWeek: 1, maxAppearances: 4 }
+        }
       });
       
       console.log('🔧 Solving with real GLPK constraints...');
