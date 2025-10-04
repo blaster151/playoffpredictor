@@ -828,6 +828,8 @@ export default function Home() {
   const handleRegenerateSchedule = async () => {
     if (isGeneratingSchedule) return; // Prevent multiple calls
     
+    // IMPORTANT: Clear existing schedule to prevent confusion if generation fails
+    setSelectedSchedule(null);
     setIsGeneratingSchedule(true);
     setGenerationError(null); // Clear any previous errors
     setScheduleGenerationProgress({
@@ -837,6 +839,7 @@ export default function Home() {
       percentage: 0
     });
     console.log('🔄 Starting full NFL schedule generation with GLPK solver...');
+    console.log('🧹 Cleared existing schedule to prevent confusion if generation fails');
     
     try {
       // Use the full NFL schedule generator with GLPK solver
@@ -935,8 +938,11 @@ export default function Home() {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred during schedule generation';
       setGenerationError(errorMessage);
       
+      // IMPORTANT: Keep schedule cleared to show failure visibly
+      console.log('⚠️ Schedule generation failed - no schedule is loaded');
+      
       // Show a more user-friendly error notification
-      const errorDetails = `Schedule generation failed!\n\nError: ${errorMessage}\n\nThis could be due to:\n• Network connectivity issues\n• GLPK solver initialization problems\n• Memory constraints\n\nPlease try again or check the console for detailed error information.`;
+      const errorDetails = `⛔ Schedule Generation FAILED!\n\n${errorMessage}\n\n⚠️ Your schedule was NOT generated. The app is showing no schedule to avoid confusion.\n\nPossible causes:\n• Constraint solver is over-constrained (try disabling primetime constraints)\n• Solver timeout (problem too complex)\n• Memory or initialization issues\n\nCheck the browser console for detailed error information.`;
       alert(errorDetails);
     } finally {
       setIsGeneratingSchedule(false);
@@ -1044,6 +1050,20 @@ export default function Home() {
         console.error(`📊 Objective value: ${solution.objective}`);
         console.error(`📊 Constraints attempted:`, solution.constraints);
         
+        // Provide specific error messages based on status
+        let statusExplanation = '';
+        if (solution.status === 'infeasible') {
+          statusExplanation = 'The constraints are mathematically incompatible. Try disabling primetime constraints (see DISABLE_PRIMETIME_FOR_TESTING.md) or relaxing bye week constraints.';
+        } else if (solution.status === 'unbounded') {
+          statusExplanation = 'The problem is unbounded (missing constraints). This is a bug in the constraint formulation.';
+        } else if (solution.status === 'error') {
+          statusExplanation = 'The solver encountered an internal error.';
+        } else {
+          statusExplanation = `Unknown solver status: ${solution.status}`;
+        }
+        
+        console.error(`💡 Status explanation: ${statusExplanation}`);
+        
         if (retryCount < maxRetries) {
           console.log(`🔄 Retrying real GLPK solver... (${retryCount + 1}/${maxRetries} retries used)`);
           // Add a small delay before retry
@@ -1053,7 +1073,7 @@ export default function Home() {
           console.error(`💥 Real GLPK solver failed after ${maxRetries + 1} attempts. This is a critical error!`);
           console.error(`💥 No fallback - GLPK should work!`);
           console.error(`💥 Please check GLPK installation and constraints.`);
-          throw new Error(`Real GLPK solver failed after ${maxRetries + 1} attempts with status: ${solution.status}`);
+          throw new Error(`GLPK solver failed (${solution.status}): ${statusExplanation}`);
         }
       }
       
@@ -1366,15 +1386,38 @@ export default function Home() {
 
             {/* Game Predictions */}
             <div className="lg:col-span-1">
-              <GamePredictions 
-                games={getCurrentWeekGames()}
-                onGameUpdate={handleGameUpdate}
-                onSubmitWeek={handleSubmitWeek}
-                onViewPools={handleViewPools}
-                resolvingGames={resolvingGames}
-                winnerAnimations={winnerAnimations}
-                currentWeek={currentWeek}
-              />
+              {!selectedSchedule && !isGeneratingSchedule ? (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg p-8 text-center">
+                  <div className="text-6xl mb-4">⚠️</div>
+                  <h3 className="text-2xl font-bold text-gray-800 dark:text-white mb-3">
+                    No Schedule Loaded
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    No schedule is currently loaded. This could mean:
+                  </p>
+                  <ul className="text-left text-gray-700 dark:text-gray-400 mb-6 space-y-2">
+                    <li>• Schedule generation failed (check error modal above)</li>
+                    <li>• You haven&apos;t generated a schedule yet</li>
+                    <li>• The schedule was cleared to prevent confusion</li>
+                  </ul>
+                  <button
+                    onClick={handleRegenerateSchedule}
+                    className="btn btn-primary bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200"
+                  >
+                    Generate New Schedule
+                  </button>
+                </div>
+              ) : (
+                <GamePredictions 
+                  games={getCurrentWeekGames()}
+                  onGameUpdate={handleGameUpdate}
+                  onSubmitWeek={handleSubmitWeek}
+                  onViewPools={handleViewPools}
+                  resolvingGames={resolvingGames}
+                  winnerAnimations={winnerAnimations}
+                  currentWeek={currentWeek}
+                />
+              )}
             </div>
 
             {/* NFC Standings */}
