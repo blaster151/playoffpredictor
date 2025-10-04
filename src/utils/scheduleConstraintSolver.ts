@@ -1089,17 +1089,17 @@ export class ScheduleConstraintSolver {
 
   // Test individual constraint groups to identify infeasibility sources
   private async testConstraintGroups(): Promise<{ [groupName: string]: { enabled: boolean; count: number; feasible?: boolean } }> {
-    const groups = {
-      'Matchup Constraints': { enabled: true, count: 0, feasible: undefined },
-      'Team Game Constraints': { enabled: true, count: 0, feasible: undefined },
-      'Bye Week Constraints': { enabled: true, count: 0, feasible: undefined },
-      'Team-Week Constraints': { enabled: true, count: 0, feasible: undefined },
-      'Max Games Per Week': { enabled: true, count: 0, feasible: undefined },
-      'Inter-Conference Limits': { enabled: true, count: 0, feasible: undefined },
-      'Consecutive Constraints': { enabled: this.constraints.preventConsecutiveRematches || false, count: 0, feasible: undefined },
-      'Self-Matchup Prevention': { enabled: true, count: 0, feasible: undefined },
-      'Max Bye Teams': { enabled: true, count: 0, feasible: undefined },
-      'Balanced Distribution': { enabled: true, count: 0, feasible: undefined }
+    const groups: { [groupName: string]: { enabled: boolean; count: number; feasible?: boolean } } = {
+      'Matchup Constraints': { enabled: true, count: 0 },
+      'Team Game Constraints': { enabled: true, count: 0 },
+      'Bye Week Constraints': { enabled: true, count: 0 },
+      'Team-Week Constraints': { enabled: true, count: 0 },
+      'Max Games Per Week': { enabled: true, count: 0 },
+      'Inter-Conference Limits': { enabled: true, count: 0 },
+      'Consecutive Constraints': { enabled: this.constraints.preventConsecutiveRematches || false, count: 0 },
+      'Self-Matchup Prevention': { enabled: true, count: 0 },
+      'Max Bye Teams': { enabled: true, count: 0 },
+      'Balanced Distribution': { enabled: true, count: 0 }
     };
 
     try {
@@ -1113,19 +1113,23 @@ export class ScheduleConstraintSolver {
       // Test basic constraints first (most likely to succeed)
       const basicTest = this.createMinimalProblem(glpkInstance, ['matchup', 'teamGame']);
       const basicResult = await glpkInstance.solve(basicTest);
-      groups['Matchup Constraints'].feasible = basicResult?.result?.status <= 2;
-      groups['Team Game Constraints'].feasible = basicResult?.result?.status <= 2;
+      if (basicResult?.result?.status) {
+        groups['Matchup Constraints'].feasible = basicResult.result.status <= 2;
+        groups['Team Game Constraints'].feasible = basicResult.result.status <= 2;
+      }
       
       // Test bye week constraints
       const byeTest = this.createMinimalProblem(glpkInstance, ['matchup', 'teamGame', 'byeWeek']);
       const byeResult = await glpkInstance.solve(byeTest);
-      groups['Bye Week Constraints'].feasible = byeResult?.result?.status <= 2;
+      if (byeResult?.result?.status) {
+        groups['Bye Week Constraints'].feasible = byeResult.result.status <= 2;
+      }
       
       // Test other constraint groups incrementally...
       // (This is a simplified version - full implementation would test all combinations)
       
     } catch (error) {
-      console.log('⚠️ Could not run constraint group tests:', error.message);
+      console.log('⚠️ Could not run constraint group tests:', error instanceof Error ? error.message : String(error));
     }
 
     return groups;
