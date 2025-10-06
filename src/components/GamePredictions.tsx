@@ -114,8 +114,8 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
     if (games.length === 0) return null;
 
     return (
-      <div className="mb-6">
-        <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center text-sm">
+      <div className="mb-3">
+        <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center text-sm">
           {title === 'AFC' && (
             <img 
               src="/icons/afc.png" 
@@ -264,7 +264,7 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-2">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
             <span className="mr-2">🎯</span>
@@ -279,24 +279,24 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
         {currentWeek && isPlayoffWeek(currentWeek) ? (
           renderGameSection('Playoff Games', playoffGames)
         ) : (
-          <div className="flex gap-4">
+          <div className="grid gap-2 w-full" style={{ gridTemplateColumns: `repeat(${[afcGames, interconferenceGames, nfcGames].filter(games => games.length > 0).length}, 1fr)` }}>
             {/* AFC Games Column */}
             {afcGames.length > 0 && (
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
                 {renderGameSection('AFC', afcGames)}
               </div>
             )}
             
             {/* Interconference Games Column */}
             {interconferenceGames.length > 0 && (
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2">
                 {renderGameSection('A vs N', interconferenceGames)}
               </div>
             )}
             
             {/* NFC Games Column */}
             {nfcGames.length > 0 && (
-              <div className="flex-1 min-w-0">
+              <div className="min-w-0 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
                 {renderGameSection('NFC', nfcGames)}
               </div>
             )}

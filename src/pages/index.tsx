@@ -973,29 +973,29 @@ export default function Home() {
     const maxRetries = 3;
     console.log(`🧮 Initializing real GLPK solver... (attempt ${retryCount + 1}/${maxRetries + 1})`);
     
+    // Generate all required matchups with proper prior year standings
+    const priorYearStandings: { [teamId: string]: number } = {};
+    
+    // Group teams by division and assign ranks
+    const divisions = new Map<string, Team[]>();
+    teams.forEach(team => {
+      const divKey = `${team.conference}_${team.division}`;
+      if (!divisions.has(divKey)) {
+        divisions.set(divKey, []);
+      }
+      divisions.get(divKey)!.push(team);
+    });
+    
+    // Assign ranks within each division
+    divisions.forEach((divisionTeams, divisionName) => {
+      // Sort teams by ID to ensure consistent ordering
+      divisionTeams.sort((a, b) => a.id.localeCompare(b.id));
+      divisionTeams.forEach((team, index) => {
+        priorYearStandings[team.id] = index + 1; // 1-4 for each division
+      });
+    });
+    
     try {
-      // Generate all required matchups with proper prior year standings
-      const priorYearStandings: { [teamId: string]: number } = {};
-      
-      // Group teams by division and assign ranks
-      const divisions = new Map<string, Team[]>();
-      teams.forEach(team => {
-        const divKey = `${team.conference}_${team.division}`;
-        if (!divisions.has(divKey)) {
-          divisions.set(divKey, []);
-        }
-        divisions.get(divKey)!.push(team);
-      });
-      
-      // Assign ranks within each division
-      divisions.forEach((divisionTeams, divisionName) => {
-        // Sort teams by ID to ensure consistent ordering
-        divisionTeams.sort((a, b) => a.id.localeCompare(b.id));
-        divisionTeams.forEach((team, index) => {
-          priorYearStandings[team.id] = index + 1; // 1-4 for each division
-        });
-      });
-      
       // Debug: Log the prior year standings
       console.log('🔍 Prior year standings:', priorYearStandings);
       
@@ -1088,6 +1088,36 @@ export default function Home() {
     } catch (error) {
       console.error('❌ Real GLPK solver error:', error);
       
+      // Check if this is a timeout error
+      const isTimeout = error instanceof Error && error.message.includes('timed out');
+      
+      if (isTimeout) {
+        console.log('⏰ GLPK solver timed out, falling back to SimpleScheduleSolver...');
+        
+        // Import SimpleScheduleSolver
+        const { SimpleScheduleSolver } = await import('../utils/simpleScheduleSolver');
+        
+        // Generate matchups for fallback
+        const config = createScheduleConfig(teams, 2025, priorYearStandings);
+        const matchups = generateMatchups(config);
+        
+        // Use SimpleScheduleSolver as fallback
+        const simpleSolver = new SimpleScheduleSolver(matchups, teams, 18);
+        const fallbackSolution = simpleSolver.solve();
+        
+        if (fallbackSolution.status === 'optimal') {
+          console.log('✅ SimpleScheduleSolver fallback succeeded!');
+          return fallbackSolution.games.map(game => ({
+            week: game.week,
+            home: game.homeTeam,
+            away: game.awayTeam
+          }));
+        } else {
+          console.error('❌ SimpleScheduleSolver fallback also failed');
+          throw new Error(`Both GLPK and SimpleScheduleSolver failed: ${fallbackSolution.status}`);
+        }
+      }
+      
       if (retryCount < maxRetries) {
         console.log(`🔄 Retrying real GLPK solver after error... (${retryCount + 1}/${maxRetries} retries used)`);
         // Add a small delay before retry
@@ -1095,9 +1125,35 @@ export default function Home() {
         return generateFullNFLScheduleWithGLPK(teams, retryCount + 1);
       } else {
         console.error(`💥 Real GLPK solver failed after ${maxRetries + 1} attempts due to error:`, error);
-        console.error(`💥 No fallback - GLPK should work!`);
-        console.error(`💥 Please check GLPK installation and constraints.`);
-        throw new Error(`Real GLPK solver failed after ${maxRetries + 1} attempts: ${error}`);
+        console.error(`💥 Falling back to SimpleScheduleSolver...`);
+        
+        try {
+          // Import SimpleScheduleSolver
+          const { SimpleScheduleSolver } = await import('../utils/simpleScheduleSolver');
+          
+          // Generate matchups for fallback
+          const config = createScheduleConfig(teams, 2025, priorYearStandings);
+          const matchups = generateMatchups(config);
+          
+          // Use SimpleScheduleSolver as final fallback
+          const simpleSolver = new SimpleScheduleSolver(matchups, teams, 18);
+          const fallbackSolution = simpleSolver.solve();
+          
+          if (fallbackSolution.status === 'optimal') {
+            console.log('✅ SimpleScheduleSolver final fallback succeeded!');
+            return fallbackSolution.games.map(game => ({
+              week: game.week,
+              home: game.homeTeam,
+              away: game.awayTeam
+            }));
+          } else {
+            console.error('❌ SimpleScheduleSolver final fallback also failed');
+            throw new Error(`All solvers failed: GLPK (${error}) and SimpleScheduleSolver (${fallbackSolution.status})`);
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback to SimpleScheduleSolver failed:', fallbackError);
+          throw new Error(`Real GLPK solver failed after ${maxRetries + 1} attempts: ${error}. Fallback also failed: ${fallbackError}`);
+        }
       }
     }
   };
@@ -1369,7 +1425,7 @@ export default function Home() {
 
 
           {/* Main Content - Standings View */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             {/* AFC Standings */}
             <StandingsPanel 
               title="AFC"

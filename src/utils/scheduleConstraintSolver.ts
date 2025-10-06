@@ -145,10 +145,25 @@ export class ScheduleConstraintSolver {
       console.log('🔧 Solving with GLPK (this may take a while)...');
       console.log('   - Variables:', problem.objective.vars?.length || 'unknown');
       console.log('   - Constraints:', problem.subjectTo?.length || 'unknown');
-      console.log('   - Please wait...');
+      console.log('   - Timeout: 5 minutes (300 seconds)');
+      console.log('   - Please be patient, this is a complex optimization problem...');
       
-      // Solve using GLPK
-      const result = await glpkInstance.solve(problem);
+      // Add progress logging every 30 seconds
+      const progressInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        console.log(`⏳ GLPK solver still working... (${elapsed}s elapsed)`);
+      }, 30000);
+      
+      // Solve using GLPK with 5-minute timeout
+      const result: any = await Promise.race([
+        glpkInstance.solve(problem),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('GLPK solver timed out after 5 minutes (300 seconds)')), 300000)
+        )
+      ]);
+      
+      // Clear the progress interval
+      clearInterval(progressInterval);
       
       const solveTime = Date.now() - startTime;
 

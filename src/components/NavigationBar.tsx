@@ -8,7 +8,7 @@ const NavigationBar: React.FC = () => {
     <nav className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
+          {/* Logo - Left aligned */}
           <div className="flex items-center space-x-3">
             <img 
               src="/icons/nfl-logo.png" 
@@ -18,28 +18,8 @@ const NavigationBar: React.FC = () => {
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Playoff Predictors</h1>
           </div>
 
-          {/* Navigation Icons */}
-          <div className="flex items-center space-x-4">
-            <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              <span className="text-lg">🕐</span>
-            </button>
-            <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              <span className="text-lg">🏈</span>
-            </button>
-            <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              <span className="text-lg">👤</span>
-            </button>
-            <span className="text-gray-500 dark:text-gray-400 font-medium">PlaySheet</span>
-          </div>
-
-          {/* Right side controls */}
-          <div className="flex items-center space-x-4">
-            <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm">
-              Hate Ads?
-            </button>
-            <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              <span className="text-lg">📤</span>
-            </button>
+          {/* Right side controls - Right aligned */}
+          <div className="flex items-center">
             <button 
               onClick={toggleDarkMode}
               className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors duration-200"
@@ -56,9 +36,6 @@ const NavigationBar: React.FC = () => {
                   <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
                 </svg>
               )}
-            </button>
-            <button className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              <span className="text-lg">❌</span>
             </button>
           </div>
         </div>

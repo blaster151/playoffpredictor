@@ -12,6 +12,11 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
+    "test:playwright": "playwright test",
+    "test:visual": "playwright test tests/quick-visual.spec.ts --headed",
+    "test:layout": "playwright test tests/ui-layout.spec.ts",
+    "visual-feedback": "playwright test tests/quick-visual.spec.ts --headed --project=chromium",
+    "screenshots": "node visual-feedback.js",
     "pull-data": "node scripts/pull-nfl-data.js",
     "pull-data-full": "node scripts/pull-nfl-data.js --include-rosters",
     "test-workflow": "node scripts/test-complete-workflow.js",
@@ -40,6 +45,7 @@
     "typescript": "^5.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.1",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
     "@vitejs/plugin-react": "^5.0.2",
@@ -49,7 +55,9 @@
     "eslint-config-next": "^14.0.0",
     "jsdom": "^26.1.0",
     "node-fetch": "^2.6.0",
+    "playwright": "^1.55.1",
     "postcss": "^8.4.0",
+    "puppeteer": "^24.23.0",
     "tailwindcss": "^3.3.0",
     "vitest": "^3.2.4"
   }
