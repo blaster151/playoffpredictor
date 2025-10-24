@@ -22,6 +22,7 @@ import TeamScheduleModal from '../components/TeamScheduleModal';
 import GenerationErrorModal from '../components/GenerationErrorModal';
 import { getTransparentTeamBadgeStyle } from '../utils/teamColors';
 import { getTeamDisplay } from '../utils/helmetIcons';
+import { realWeek1Games } from '../utils/realWeek1Data';
 
 export default function Home() {
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -447,8 +448,9 @@ export default function Home() {
       homeScore: game.homeScore !== undefined ? game.homeScore : undefined,
       awayScore: game.awayScore !== undefined ? game.awayScore : undefined,
       week: currentWeek,
-      day: 'Sunday',
-      date: `Week ${currentWeek}`,
+      day: game.day || 'Sunday', // Use the actual day from the game data
+      date: game.date || `Week ${currentWeek}`,
+      time: game.time, // Include time if available
       isPlayed: game.isPlayed || false
     }));
     
@@ -969,6 +971,41 @@ export default function Home() {
     setSelectedTeam(null);
   };
 
+  // Temporary function to inject real Week 1 data
+  const handleInjectRealWeek1 = () => {
+    if (currentWeek === 1 && selectedSchedule) {
+      console.log('🏈 Injecting real Week 1 data:', realWeek1Games);
+      console.log('📅 Sample game days:', realWeek1Games.slice(0, 3).map(g => ({ id: g.id, day: g.day, time: g.time })));
+      
+      const updatedSchedule = {
+        ...selectedSchedule,
+        weeks: {
+          ...selectedSchedule.weeks,
+          1: {
+            ...selectedSchedule.weeks[1],
+            games: realWeek1Games
+          }
+        },
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Update in-memory state
+      setSelectedSchedule(updatedSchedule);
+      setDebouncedSchedule(updatedSchedule);
+      
+      // Persist to localStorage
+      try {
+        const scheduleSaver = new ScheduleSaver();
+        scheduleSaver.saveSchedule(updatedSchedule);
+        console.log('💾 Real Week 1 data saved to localStorage');
+      } catch (error) {
+        console.error('❌ Failed to save real Week 1 data:', error);
+      }
+      
+      console.log('✅ Real Week 1 data injected and persisted successfully');
+    }
+  };
+
   const generateFullNFLScheduleWithGLPK = async (teams: Team[], retryCount: number = 0): Promise<Array<{ week: number; home: string; away: string }>> => {
     const maxRetries = 3;
     console.log(`🧮 Initializing real GLPK solver... (attempt ${retryCount + 1}/${maxRetries + 1})`);
@@ -1220,6 +1257,18 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
         <NavigationBar />
         
+        {/* Temporary button to inject real Week 1 data */}
+        {currentWeek === 1 && selectedSchedule && (
+          <div className="text-center mb-4">
+            <button
+              onClick={handleInjectRealWeek1}
+              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              🏈 Inject Real Week 1 Schedule (with times)
+            </button>
+          </div>
+        )}
+        
         <div className="nfl-container">
           <div className="text-center mb-2">
             <div className="bg-gray-700 dark:bg-gray-800 text-white py-3 px-6 rounded-lg shadow-lg mb-1">
@@ -1425,31 +1474,33 @@ export default function Home() {
 
 
           {/* Main Content - Standings View */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
             {/* AFC Standings */}
-            <StandingsPanel 
-              title="AFC"
-              standings={standings.filter(s => s.team.conference === 'AFC')}
-              viewMode={standingsViewMode}
-              onViewModeChange={setStandingsViewMode}
-              onTeamClick={handleTeamClick}
-              eliminatedTeams={(() => {
-                if (isPlayoffWeek(currentWeek)) {
-                  const playoffBrackets = generatePlayoffBrackets(standings, currentWeek, selectedSchedule);
-                  const allPlayoffGames = [
-                    ...playoffBrackets.wildCard,
-                    ...playoffBrackets.divisional,
-                    ...playoffBrackets.conferenceChampionships,
-                    ...playoffBrackets.superBowl
-                  ];
-                  return getEliminatedTeams(standings, currentWeek, allPlayoffGames);
-                }
-                return new Set<string>();
-              })()}
-            />
+            <div className="lg:col-span-1">
+              <StandingsPanel 
+                title="AFC"
+                standings={standings.filter(s => s.team.conference === 'AFC')}
+                viewMode={standingsViewMode}
+                onViewModeChange={setStandingsViewMode}
+                onTeamClick={handleTeamClick}
+                eliminatedTeams={(() => {
+                  if (isPlayoffWeek(currentWeek)) {
+                    const playoffBrackets = generatePlayoffBrackets(standings, currentWeek, selectedSchedule);
+                    const allPlayoffGames = [
+                      ...playoffBrackets.wildCard,
+                      ...playoffBrackets.divisional,
+                      ...playoffBrackets.conferenceChampionships,
+                      ...playoffBrackets.superBowl
+                    ];
+                    return getEliminatedTeams(standings, currentWeek, allPlayoffGames);
+                  }
+                  return new Set<string>();
+                })()}
+              />
+            </div>
 
             {/* Game Predictions */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-3">
               {!selectedSchedule && !isGeneratingSchedule ? (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg p-8 text-center">
                   <div className="text-6xl mb-4">⚠️</div>
@@ -1485,27 +1536,29 @@ export default function Home() {
             </div>
 
             {/* NFC Standings */}
-            <StandingsPanel 
-              title="NFC"
-              standings={standings.filter(s => s.team.conference === 'NFC')}
-              viewMode={standingsViewMode}
-              onViewModeChange={setStandingsViewMode}
-              onTeamClick={handleTeamClick}
-              align="right"
-              eliminatedTeams={(() => {
-                if (isPlayoffWeek(currentWeek)) {
-                  const playoffBrackets = generatePlayoffBrackets(standings, currentWeek, selectedSchedule);
-                  const allPlayoffGames = [
-                    ...playoffBrackets.wildCard,
-                    ...playoffBrackets.divisional,
-                    ...playoffBrackets.conferenceChampionships,
-                    ...playoffBrackets.superBowl
-                  ];
-                  return getEliminatedTeams(standings, currentWeek, allPlayoffGames);
-                }
-                return new Set<string>();
-              })()}
-            />
+            <div className="lg:col-span-1">
+              <StandingsPanel 
+                title="NFC"
+                standings={standings.filter(s => s.team.conference === 'NFC')}
+                viewMode={standingsViewMode}
+                onViewModeChange={setStandingsViewMode}
+                onTeamClick={handleTeamClick}
+                align="right"
+                eliminatedTeams={(() => {
+                  if (isPlayoffWeek(currentWeek)) {
+                    const playoffBrackets = generatePlayoffBrackets(standings, currentWeek, selectedSchedule);
+                    const allPlayoffGames = [
+                      ...playoffBrackets.wildCard,
+                      ...playoffBrackets.divisional,
+                      ...playoffBrackets.conferenceChampionships,
+                      ...playoffBrackets.superBowl
+                    ];
+                    return getEliminatedTeams(standings, currentWeek, allPlayoffGames);
+                  }
+                  return new Set<string>();
+                })()}
+              />
+            </div>
           </div>
 
           {/* Teams on BYE */}

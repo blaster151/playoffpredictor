@@ -197,7 +197,17 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
                     />
                   </div>
                   
-                  <span className="text-gray-500 dark:text-gray-400 font-medium">vs</span>
+                  <div className="relative flex items-center justify-center">
+                    <span className={`absolute -top-4 text-xs ${game.day === 'Monday' ? 'text-blue-600 dark:text-blue-400 font-semibold' : game.day === 'Thursday' ? 'text-purple-600 dark:text-purple-400 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {game.day === 'Monday' ? '🌙' : game.day === 'Thursday' ? '📺' : game.day}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">vs</span>
+                    {game.time && (
+                      <span className="absolute -bottom-4 text-xs text-gray-500 dark:text-gray-400">
+                        {game.time}
+                      </span>
+                    )}
+                  </div>
                   
                   <div className={`flex items-center space-x-1 ${homeWins ? 'font-bold text-green-600' : ''}`}>
                     <input
@@ -234,10 +244,6 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
                       <span className="text-xs font-bold hidden">{homeTeam?.abbreviation}</span>
                     </div>
                   </div>
-                  
-                  <span className={`text-xs ml-1 ${game.day === 'Monday' ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
-                    {game.day === 'Monday' ? '🌙' : game.day}
-                  </span>
                 </div>
                 
                 {awayWins && (
@@ -279,24 +285,24 @@ const GamePredictions: React.FC<GamePredictionsProps> = ({
         {currentWeek && isPlayoffWeek(currentWeek) ? (
           renderGameSection('Playoff Games', playoffGames)
         ) : (
-          <div className="grid gap-2 w-full" style={{ gridTemplateColumns: `repeat(${[afcGames, interconferenceGames, nfcGames].filter(games => games.length > 0).length}, 1fr)` }}>
+          <div className="grid gap-6 w-full" style={{ gridTemplateColumns: `repeat(${[afcGames, interconferenceGames, nfcGames].filter(games => games.length > 0).length}, minmax(0, 1fr))` }}>
             {/* AFC Games Column */}
             {afcGames.length > 0 && (
-              <div className="min-w-0 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2">
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 min-w-0">
                 {renderGameSection('AFC', afcGames)}
               </div>
             )}
             
             {/* Interconference Games Column */}
             {interconferenceGames.length > 0 && (
-              <div className="min-w-0 bg-purple-50 dark:bg-purple-900/20 rounded-lg p-2">
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 min-w-0">
                 {renderGameSection('A vs N', interconferenceGames)}
               </div>
             )}
             
             {/* NFC Games Column */}
             {nfcGames.length > 0 && (
-              <div className="min-w-0 bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
+              <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 min-w-0">
                 {renderGameSection('NFC', nfcGames)}
               </div>
             )}

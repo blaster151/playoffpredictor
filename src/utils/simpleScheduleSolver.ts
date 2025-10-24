@@ -155,9 +155,13 @@ export class SimpleScheduleSolver {
       return -1;
     }
 
+    // Bye weeks are typically in weeks 5-14 (avoiding early season weeks 1-4 and late weeks 15-18)
+    // Teams play 17 games over 18 weeks, so each team gets exactly 1 bye week
+    // We need to ensure teams don't get scheduled in ALL 18 weeks
+    
     // Find the earliest week where both teams are available
     for (let week = 1; week <= this.weeks; week++) {
-      if (this.canScheduleInWeek(matchup, week, teamWeeks)) {
+      if (this.canScheduleInWeek(matchup, week, teamWeeks, teamGames)) {
         return week;
       }
     }
@@ -168,11 +172,25 @@ export class SimpleScheduleSolver {
   private canScheduleInWeek(
     matchup: Matchup,
     week: number,
-    teamWeeks: { [teamId: string]: number[] }
+    teamWeeks: { [teamId: string]: number[] },
+    teamGames: { [teamId: string]: number }
   ): boolean {
     // Check if either team is already playing this week
     if (teamWeeks[matchup.home].includes(week) || teamWeeks[matchup.away].includes(week)) {
       return false;
+    }
+
+    // Bye week logic: Ensure teams get a bye week
+    // If a team has played 16 games and this is their 17th, they should have at least one week off
+    const homeGamesPlayed = teamGames[matchup.home];
+    const awayGamesPlayed = teamGames[matchup.away];
+    
+    // If a team is approaching 17 games (16 games played), ensure they haven't played all 17 weeks yet
+    if (homeGamesPlayed >= 16 && teamWeeks[matchup.home].length >= 17) {
+      return false; // Home team has no bye week left
+    }
+    if (awayGamesPlayed >= 16 && teamWeeks[matchup.away].length >= 17) {
+      return false; // Away team has no bye week left
     }
 
     // Check if this would create too many consecutive games

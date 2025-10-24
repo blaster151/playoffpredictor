@@ -16,6 +16,7 @@ export interface Game {
   homeScore?: number;
   day: string;
   date: string;
+  time?: string; // Game time (e.g., "8:15 PM", "1:00 PM")
   isPlayed: boolean;
   venue?: string; // Optional venue information for international games
 }
