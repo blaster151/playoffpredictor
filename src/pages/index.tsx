@@ -22,7 +22,6 @@ import TeamScheduleModal from '../components/TeamScheduleModal';
 import GenerationErrorModal from '../components/GenerationErrorModal';
 import { getTransparentTeamBadgeStyle } from '../utils/teamColors';
 import { getTeamDisplay } from '../utils/helmetIcons';
-import { realWeek1Games } from '../utils/realWeek1Data';
 
 export default function Home() {
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -441,7 +440,7 @@ export default function Home() {
     const weekGames = selectedSchedule.weeks[currentWeek]?.games || [];
     console.log(`📅 Week ${currentWeek}: ${weekGames.length} games`);
     
-    const mappedGames = weekGames.map(game => ({
+    const mappedGames = weekGames.map((game: any) => ({
       id: game.id,
       homeTeam: game.homeTeam,
       awayTeam: game.awayTeam,
@@ -451,6 +450,7 @@ export default function Home() {
       day: game.day || 'Sunday', // Use the actual day from the game data
       date: game.date || `Week ${currentWeek}`,
       time: game.time, // Include time if available
+      venue: game.venue, // Include venue if available
       isPlayed: game.isPlayed || false
     }));
     
@@ -874,11 +874,16 @@ export default function Home() {
         throw new Error(`Schedule validation failed: Expected ${expectedGames} games but got ${fullScheduleGames.length}. The generator may have failed to create a complete schedule.`);
       }
       
+      // Load starting point to pass rich game data (day, time, etc.) to the saver
+      const { loadScheduleStartingPoint } = await import('../utils/scheduleStartingPoint');
+      const startingPoint = loadScheduleStartingPoint();
+      
       const newSchedule = await ScheduleSaver.saveSchedule(fullScheduleGames, currentTeams, {
-        name: `Full NFL Schedule - ${new Date().toLocaleString()}`,
-        description: 'Generated using GLPK solver with proper NFL constraints and bye week logic',
-        season: 2025,
+        name: `NFL ${startingPoint.season} Schedule - ${new Date().toLocaleString()}`,
+        description: `Generated using GLPK solver with ${startingPoint.preScheduledWeeks.length} pre-scheduled week(s) and proper NFL constraints`,
+        season: startingPoint.season,
         generatedBy: 'GLPK',
+        startingPointGames: startingPoint.weeks, // Pass pre-scheduled games with rich data
       });
       
       // Clear any existing game scores from localStorage to prevent persistence
@@ -971,40 +976,6 @@ export default function Home() {
     setSelectedTeam(null);
   };
 
-  // Temporary function to inject real Week 1 data
-  const handleInjectRealWeek1 = () => {
-    if (currentWeek === 1 && selectedSchedule) {
-      console.log('🏈 Injecting real Week 1 data:', realWeek1Games);
-      console.log('📅 Sample game days:', realWeek1Games.slice(0, 3).map(g => ({ id: g.id, day: g.day, time: g.time })));
-      
-      const updatedSchedule = {
-        ...selectedSchedule,
-        weeks: {
-          ...selectedSchedule.weeks,
-          1: {
-            ...selectedSchedule.weeks[1],
-            games: realWeek1Games
-          }
-        },
-        updatedAt: new Date().toISOString()
-      };
-      
-      // Update in-memory state
-      setSelectedSchedule(updatedSchedule);
-      setDebouncedSchedule(updatedSchedule);
-      
-      // Persist to localStorage
-      try {
-        const scheduleSaver = new ScheduleSaver();
-        scheduleSaver.saveSchedule(updatedSchedule);
-        console.log('💾 Real Week 1 data saved to localStorage');
-      } catch (error) {
-        console.error('❌ Failed to save real Week 1 data:', error);
-      }
-      
-      console.log('✅ Real Week 1 data injected and persisted successfully');
-    }
-  };
 
   const generateFullNFLScheduleWithGLPK = async (teams: Team[], retryCount: number = 0): Promise<Array<{ week: number; home: string; away: string }>> => {
     const maxRetries = 3;
@@ -1036,14 +1007,32 @@ export default function Home() {
       // Debug: Log the prior year standings
       console.log('🔍 Prior year standings:', priorYearStandings);
       
-      const config = createScheduleConfig(teams, 2025, priorYearStandings);
-      const matchups = generateMatchups(config);
-      console.log(`📋 Generated ${matchups.length} matchups`);
+      // Load schedule starting point (pre-scheduled weeks like Week 1)
+      const { loadScheduleStartingPoint, filterPreScheduledMatchups, getPreScheduledMatchups, getTeamGameCounts } = await import('../utils/scheduleStartingPoint');
+      const startingPoint = loadScheduleStartingPoint();
+      const preScheduledMatchups = getPreScheduledMatchups();
+      const teamGameCounts = getTeamGameCounts();
+      
+      console.log(`📅 Schedule starting point: ${startingPoint.description}`);
+      console.log(`   Pre-scheduled weeks: ${startingPoint.preScheduledWeeks.join(', ')}`);
+      console.log(`   Pre-scheduled games: ${preScheduledMatchups.length}`);
+      console.log(`   Teams with pre-scheduled games: ${teamGameCounts.size}`);
+      
+      const config = createScheduleConfig(teams, 2026, priorYearStandings);
+      const allMatchups = generateMatchups(config);
+      console.log(`📋 Generated ${allMatchups.length} total matchups`);
+      
+      // Filter out matchups that are already scheduled in the starting point
+      const matchups = filterPreScheduledMatchups(allMatchups, preScheduledMatchups);
+      console.log(`   Filtered to ${matchups.length} matchups for solver (${allMatchups.length - matchups.length} already scheduled)`);
       
       // Create real GLPK solver with proper NFL constraints
       // IMPORTANT: Primetime constraints disabled for performance
       // With primetime enabled: 17,206 constraints (solver hangs)
       // Without primetime: ~5,000 constraints (solver completes in seconds)
+      const preScheduledWeeksSet = new Set(startingPoint.preScheduledWeeks);
+      console.log(`🔍 Pre-scheduled weeks to skip in solver: ${Array.from(preScheduledWeeksSet).join(', ')}`);
+      
       const solver = createScheduleSolver(matchups, teams, 18, {
         maxGamesPerWeek: 18, // Allow more games per week
         byeWeekDistribution: 'balanced',
@@ -1053,7 +1042,7 @@ export default function Home() {
           thursdayNightFootball: { enabled: false, gamesPerWeek: 1, maxAppearances: 2, minimumRestDays: 4, startWeek: 2 },
           sundayNightFootball: { enabled: false, gamesPerWeek: 1, maxAppearances: 4 }
         }
-      });
+      }, teamGameCounts, preScheduledWeeksSet); // Pass pre-scheduled game counts and weeks
       
       console.log('🔧 Solving with real GLPK constraints...');
       const solution = await solver.solve();
@@ -1088,7 +1077,53 @@ export default function Home() {
           }
         }
         
-        return games;
+        // Merge solver games with pre-scheduled games from starting point
+        const mergedGames = [...preScheduledMatchups.map(m => ({
+          week: m.week,
+          home: m.home,
+          away: m.away
+        })), ...games];
+        
+        console.log(`✅ Merged ${preScheduledMatchups.length} pre-scheduled games + ${games.length} solver games = ${mergedGames.length} total`);
+        
+        // POSTPROCESSING: Fix consecutive rematches
+        // This was moved out of the solver to improve performance (removed ~8,704 constraints)
+        const { fixConsecutiveRematches, validatePreScheduledWeeks } = await import('../utils/postProcessingConstraints');
+        
+        // Convert merged games to ScheduledGame format for postprocessing
+        const scheduledGames = mergedGames.map(g => ({
+          matchup: { home: g.home, away: g.away },
+          week: g.week,
+          homeTeam: g.home,
+          awayTeam: g.away,
+          primetimeSlot: null as null,
+          timeSlot: 'EARLY' as const,
+          networkPreference: 'CBS' as const
+        }));
+        
+        // Store original for validation
+        const originalScheduledGames = [...scheduledGames];
+        
+        // Fix consecutive rematches (respects pre-scheduled weeks)
+        const fixedScheduledGames = fixConsecutiveRematches(scheduledGames, teams, preScheduledWeeksSet);
+        
+        // Validate pre-scheduled weeks weren't modified
+        const isValid = validatePreScheduledWeeks(originalScheduledGames, fixedScheduledGames, preScheduledWeeksSet);
+        if (!isValid) {
+          console.error('❌ CRITICAL ERROR: Pre-scheduled weeks were modified during postprocessing!');
+          throw new Error('Postprocessing modified pre-scheduled weeks - this is a bug!');
+        }
+        
+        // Convert back to simple format
+        const finalGames = fixedScheduledGames.map(g => ({
+          week: g.week,
+          home: g.homeTeam,
+          away: g.awayTeam
+        }));
+        
+        console.log(`✅ Postprocessing complete: ${finalGames.length} games scheduled`);
+        
+        return finalGames;
       } else {
         console.error(`❌ Real GLPK solver returned status: ${solution.status}`);
         console.error(`📊 Solve time: ${solution.solveTime}ms`);
@@ -1125,36 +1160,6 @@ export default function Home() {
     } catch (error) {
       console.error('❌ Real GLPK solver error:', error);
       
-      // Check if this is a timeout error
-      const isTimeout = error instanceof Error && error.message.includes('timed out');
-      
-      if (isTimeout) {
-        console.log('⏰ GLPK solver timed out, falling back to SimpleScheduleSolver...');
-        
-        // Import SimpleScheduleSolver
-        const { SimpleScheduleSolver } = await import('../utils/simpleScheduleSolver');
-        
-        // Generate matchups for fallback
-        const config = createScheduleConfig(teams, 2025, priorYearStandings);
-        const matchups = generateMatchups(config);
-        
-        // Use SimpleScheduleSolver as fallback
-        const simpleSolver = new SimpleScheduleSolver(matchups, teams, 18);
-        const fallbackSolution = simpleSolver.solve();
-        
-        if (fallbackSolution.status === 'optimal') {
-          console.log('✅ SimpleScheduleSolver fallback succeeded!');
-          return fallbackSolution.games.map(game => ({
-            week: game.week,
-            home: game.homeTeam,
-            away: game.awayTeam
-          }));
-        } else {
-          console.error('❌ SimpleScheduleSolver fallback also failed');
-          throw new Error(`Both GLPK and SimpleScheduleSolver failed: ${fallbackSolution.status}`);
-        }
-      }
-      
       if (retryCount < maxRetries) {
         console.log(`🔄 Retrying real GLPK solver after error... (${retryCount + 1}/${maxRetries} retries used)`);
         // Add a small delay before retry
@@ -1162,35 +1167,8 @@ export default function Home() {
         return generateFullNFLScheduleWithGLPK(teams, retryCount + 1);
       } else {
         console.error(`💥 Real GLPK solver failed after ${maxRetries + 1} attempts due to error:`, error);
-        console.error(`💥 Falling back to SimpleScheduleSolver...`);
-        
-        try {
-          // Import SimpleScheduleSolver
-          const { SimpleScheduleSolver } = await import('../utils/simpleScheduleSolver');
-          
-          // Generate matchups for fallback
-          const config = createScheduleConfig(teams, 2025, priorYearStandings);
-          const matchups = generateMatchups(config);
-          
-          // Use SimpleScheduleSolver as final fallback
-          const simpleSolver = new SimpleScheduleSolver(matchups, teams, 18);
-          const fallbackSolution = simpleSolver.solve();
-          
-          if (fallbackSolution.status === 'optimal') {
-            console.log('✅ SimpleScheduleSolver final fallback succeeded!');
-            return fallbackSolution.games.map(game => ({
-              week: game.week,
-              home: game.homeTeam,
-              away: game.awayTeam
-            }));
-          } else {
-            console.error('❌ SimpleScheduleSolver final fallback also failed');
-            throw new Error(`All solvers failed: GLPK (${error}) and SimpleScheduleSolver (${fallbackSolution.status})`);
-          }
-        } catch (fallbackError) {
-          console.error('❌ Fallback to SimpleScheduleSolver failed:', fallbackError);
-          throw new Error(`Real GLPK solver failed after ${maxRetries + 1} attempts: ${error}. Fallback also failed: ${fallbackError}`);
-        }
+        console.error(`💥 NO FALLBACK - GLPK is the only valid solver (SimpleScheduleSolver removed)`);
+        throw new Error(`GLPK solver failed after ${maxRetries + 1} attempts: ${error}. Please check constraints and try again.`);
       }
     }
   };
@@ -1258,22 +1236,12 @@ export default function Home() {
         <NavigationBar />
         
         {/* Temporary button to inject real Week 1 data */}
-        {currentWeek === 1 && selectedSchedule && (
-          <div className="text-center mb-4">
-            <button
-              onClick={handleInjectRealWeek1}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              🏈 Inject Real Week 1 Schedule (with times)
-            </button>
-          </div>
-        )}
         
         <div className="nfl-container">
           <div className="text-center mb-2">
             <div className="bg-gray-700 dark:bg-gray-800 text-white py-3 px-6 rounded-lg shadow-lg mb-1">
               <h1 className="text-4xl font-bold mb-2">
-                🏈 NFL 2025-2026 SEASON
+                🏈 NFL 2026-2027 SEASON
               </h1>
               <div className="text-lg opacity-90">
                 Weekly Actions

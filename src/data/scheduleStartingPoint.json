@@ -1,0 +1,173 @@
+{
+  "season": 2026,
+  "description": "NFL 2026 Season - Pre-scheduled games (Weeks 1-2)",
+  "preScheduledWeeks": [1],
+  "weeks": {
+    "1": {
+      "games": [
+        {
+          "id": "2026-wk1-game1",
+          "week": 1,
+          "awayTeam": "rams",
+          "homeTeam": "buccaneers",
+          "day": "Thursday",
+          "date": "2026-09-10",
+          "time": "8:15 PM",
+          "isPlayed": false,
+          "venue": "Raymond James Stadium"
+        },
+        {
+          "id": "2026-wk1-game2",
+          "week": 1,
+          "awayTeam": "jets",
+          "homeTeam": "chiefs",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game3",
+          "week": 1,
+          "awayTeam": "dolphins",
+          "homeTeam": "bills",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game4",
+          "week": 1,
+          "awayTeam": "bengals",
+          "homeTeam": "saints",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game5",
+          "week": 1,
+          "awayTeam": "colts",
+          "homeTeam": "browns",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game6",
+          "week": 1,
+          "awayTeam": "vikings",
+          "homeTeam": "steelers",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game7",
+          "week": 1,
+          "awayTeam": "falcons",
+          "homeTeam": "bears",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game8",
+          "week": 1,
+          "awayTeam": "giants",
+          "homeTeam": "cowboys",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game9",
+          "week": 1,
+          "awayTeam": "packers",
+          "homeTeam": "cardinals",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "1:00 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game10",
+          "week": 1,
+          "awayTeam": "texans",
+          "homeTeam": "eagles",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "4:05 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game11",
+          "week": 1,
+          "awayTeam": "raiders",
+          "homeTeam": "seahawks",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "4:05 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game12",
+          "week": 1,
+          "awayTeam": "patriots",
+          "homeTeam": "broncos",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "4:25 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game13",
+          "week": 1,
+          "awayTeam": "jaguars",
+          "homeTeam": "titans",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "4:25 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game14",
+          "week": 1,
+          "awayTeam": "lions",
+          "homeTeam": "chargers",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "4:25 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game15",
+          "week": 1,
+          "awayTeam": "panthers",
+          "homeTeam": "ravens",
+          "day": "Sunday",
+          "date": "2026-09-13",
+          "time": "8:20 PM",
+          "isPlayed": false
+        },
+        {
+          "id": "2026-wk1-game16",
+          "week": 1,
+          "awayTeam": "49ers",
+          "homeTeam": "commanders",
+          "day": "Monday",
+          "date": "2026-09-14",
+          "time": "8:15 PM",
+          "isPlayed": false
+        }
+      ]
+    }
+  }
+}
+

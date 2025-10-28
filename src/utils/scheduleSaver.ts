@@ -21,6 +21,10 @@ export interface SavedSchedule {
         homeScore?: number;
         awayScore?: number;
         winner?: string;
+        day?: string; // Day of week (e.g., "Sunday", "Monday", "Thursday")
+        date?: string; // Date string (e.g., "2026-09-13")
+        time?: string; // Game time (e.g., "8:15 PM")
+        venue?: string; // Stadium/venue information
         isPlayed: boolean;
         isPredicted: boolean;
       }>;
@@ -56,6 +60,7 @@ export class ScheduleSaver {
       description?: string;
       season?: number;
       generatedBy?: 'GLPK' | 'manual' | 'import';
+      startingPointGames?: { [weekNumber: number]: { games: Game[] } }; // Pre-scheduled games with rich data
     }
   ): Promise<SavedSchedule> {
     const teamMap = new Map(teams.map(team => [team.id, team]));
@@ -67,28 +72,49 @@ export class ScheduleSaver {
     const maxWeek = Math.max(...schedule.map(game => game.week));
     
     for (let week = 1; week <= maxWeek; week++) {
-      const weekGames = schedule.filter(game => game.week === week);
+      // Check if this week has pre-scheduled games with rich data (day, time, etc.)
+      const startingPointWeek = options.startingPointGames?.[week];
       
-      weeks[week] = {
-        games: weekGames.map(game => {
-          const homeTeam = teamMap.get(game.home);
-          const awayTeam = teamMap.get(game.away);
-          
-          return {
-            id: `${game.home}-${game.away}-week${week}`,
-            homeTeam: game.home,
-            awayTeam: game.away,
-            homeTeamName: homeTeam?.name || game.home,
-            awayTeamName: awayTeam?.name || game.away,
-            homeTeamAbbr: homeTeam?.abbreviation || game.home,
-            awayTeamAbbr: awayTeam?.abbreviation || game.away,
-            isPlayed: false,
-            isPredicted: false,
-          };
-        }),
-        weekNumber: week,
-        isComplete: false,
-      };
+      if (startingPointWeek) {
+        // Use pre-scheduled games with all their rich data
+        weeks[week] = {
+          games: startingPointWeek.games.map(game => ({
+            ...game,
+            homeTeamName: teamMap.get(game.homeTeam)?.name || game.homeTeam,
+            awayTeamName: teamMap.get(game.awayTeam)?.name || game.awayTeam,
+            homeTeamAbbr: teamMap.get(game.homeTeam)?.abbreviation || game.homeTeam,
+            awayTeamAbbr: teamMap.get(game.awayTeam)?.abbreviation || game.awayTeam,
+          })),
+          weekNumber: week,
+          isComplete: false,
+        };
+      } else {
+        // Use solver-generated games (generic format)
+        const weekGames = schedule.filter(game => game.week === week);
+        
+        weeks[week] = {
+          games: weekGames.map(game => {
+            const homeTeam = teamMap.get(game.home);
+            const awayTeam = teamMap.get(game.away);
+            
+            return {
+              id: `${game.home}-${game.away}-week${week}`,
+              homeTeam: game.home,
+              awayTeam: game.away,
+              homeTeamName: homeTeam?.name || game.home,
+              awayTeamName: awayTeam?.name || game.away,
+              homeTeamAbbr: homeTeam?.abbreviation || game.home,
+              awayTeamAbbr: awayTeam?.abbreviation || game.away,
+              day: 'Sunday', // Default for solver-generated games
+              date: `Week ${week}`,
+              isPlayed: false,
+              isPredicted: false,
+            };
+          }),
+          weekNumber: week,
+          isComplete: false,
+        };
+      }
     }
 
     const savedSchedule: SavedSchedule = {
