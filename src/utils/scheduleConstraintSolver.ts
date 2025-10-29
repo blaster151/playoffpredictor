@@ -284,19 +284,17 @@ export class ScheduleConstraintSolver {
     
     // STEP 2: TIGHT BOUNDS
     this.addByeWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
-    
-    // STEP 3: SIMPLE INEQUALITIES  
-    // DISABLED: addTeamWeekConstraints - 544 redundant constraints! Already enforced by matchup + team game constraints
-    // this.addTeamWeekConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks);
+
+    // STEP 3: SIMPLE INEQUALITIES
+    this.addTeamWeekConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks);
     this.addMaxGamesPerWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
     this.addInterConferenceConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
-    
+
     // STEP 4: COMPLEX/EXPENSIVE CONSTRAINTS (least restrictive, most expensive)
     // DISABLED: addConsecutiveConstraints - ~8,704 constraints! Moved to postprocessing for 5-10x speedup
     // this.addConsecutiveConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
     this.addSelfMatchupPrevention(subjectTo, glpkInstance, numMatchups, numWeeks);
-    // DISABLED: addMaxByeTeamsConstraint - ~512 constraints + 320 variables! Can be checked in postprocessing
-    // this.addMaxByeTeamsConstraint(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
+    this.addMaxByeTeamsConstraint(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
     this.addBalancedWeeklyDistribution(subjectTo, glpkInstance, numMatchups, numWeeks);
     
     console.log('🧪 TESTING: Team game constraints DISABLED (testing if redundant)');
@@ -313,7 +311,7 @@ export class ScheduleConstraintSolver {
     console.log('  - Matchups:', this.matchups.length);
     console.log('  - Teams:', this.teams.length);
     console.log('  - Weeks:', this.weeks);
-    console.log('  ✅ Bye weeks prevented in weeks 1-4 and 15-18');
+    console.log('  ✅ Bye weeks limited to weeks 5-12 and 14');
     console.log('  ✅ Inter-conference distribution limits');
     console.log('  ✅ Maximum 6 teams on bye per week');
     console.log('  ✅ Balanced weekly distribution');
@@ -456,24 +454,27 @@ export class ScheduleConstraintSolver {
         continue;
       }
       
-      if (w <= 4 || w >= 15) {
-        // Weeks 1-4 and 15-18: All teams must play (no byes allowed)
-        // RELAXED: Changed from EXACTLY 16 to 15-16 to help GLPK find solutions
-        // In practice, with 256 games across 17 weeks, we'll naturally get 16 games in these weeks
-        subjectTo.push({
-          name: `no_byes_week_${w}`,
-          vars,
-          bnds: { type: glpkInstance.GLP_DB, lb: 15, ub: 16 } // 15-16 games (tight but not exact)
-        });
-      } else {
-        // Weeks 5-14: Bye weeks allowed (at least 13 games, max 6 teams on bye)
+      if (this.isByeAllowedWeek(w)) {
+        // Bye weeks allowed: enforce lower bound to permit up to six byes
         subjectTo.push({
           name: `bye_allowed_week_${w}`,
           vars,
           bnds: { type: glpkInstance.GLP_DB, lb: 13, ub: 16 } // 13-16 games (up to 6 byes)
         });
+      } else {
+        // Bye weeks not allowed: every team must play exactly one game
+        subjectTo.push({
+          name: `no_byes_week_${w}`,
+          vars,
+          bnds: { type: glpkInstance.GLP_FX, lb: 16, ub: 16 }
+        });
       }
     }
+  }
+
+  private isByeAllowedWeek(week: number): boolean {
+    // NFL rules: bye weeks are only permitted in weeks 5-12 and 14
+    return (week >= 5 && week <= 12) || week === 14;
   }
 
   private addTeamWeekConstraints(
@@ -663,49 +664,76 @@ export class ScheduleConstraintSolver {
   ): void {
     // Constraint 9: Maximum 6 teams on bye per week (NFL rule) - RE-ENABLED
     // This is complex because we need to track which teams are NOT playing
+    const teamByeVars: Map<number, { name: string; coef: number }[]> = new Map();
+
     for (let w = 1; w <= numWeeks; w++) {
-      // Only apply this constraint to bye-allowed weeks (5-14)
-      if (w >= 5 && w <= 14) {
-        // For each team, create a binary variable indicating if they're on bye
-        const byeVars: { name: string; coef: number }[] = [];
-        
-        for (let t = 0; t < numTeams; t++) {
-          const teamId = this.teams[t].id;
-          const byeVarName = `bye_${t}_${w}`;
-          varNames.push(byeVarName);
-          
-          // bye_t_w = 1 if team t is on bye in week w, 0 otherwise
-          byeVars.push({ name: byeVarName, coef: 1 });
-          
-          // Link bye variable to game variables: 
-          // bye_t_w + sum(games involving team t in week w) = 1
-          const teamGameVars: { name: string; coef: number }[] = [
-            { name: byeVarName, coef: 1 }
-          ];
-          
-          for (let m = 0; m < numMatchups; m++) {
-            const matchup = this.matchups[m];
-            if (matchup.home === teamId || matchup.away === teamId) {
-              teamGameVars.push({ name: `x_${m}_${w}`, coef: 1 });
-            }
-          }
-          
-          subjectTo.push({
-            name: `bye_link_team_${t}_week_${w}`,
-            vars: teamGameVars,
-            bnds: { type: glpkInstance.GLP_FX, lb: 1, ub: 1 } // Exactly 1
-          });
-        }
-        
-        // Limit total bye teams to 6
-        if (byeVars.length > 0) {
-          subjectTo.push({
-            name: `max_bye_teams_week_${w}`,
-            vars: byeVars,
-            bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: 6 }
-          });
-        }
+      if (!this.isByeAllowedWeek(w)) {
+        continue;
       }
+
+      if (this.preScheduledWeeks.has(w)) {
+        continue;
+      }
+
+      // For each team, create a binary variable indicating if they're on bye
+      const byeVars: { name: string; coef: number }[] = [];
+
+      for (let t = 0; t < numTeams; t++) {
+        const teamId = this.teams[t].id;
+        const byeVarName = `bye_${t}_${w}`;
+        varNames.push(byeVarName);
+
+        // Track bye variable for per-team equality constraint
+        if (!teamByeVars.has(t)) {
+          teamByeVars.set(t, []);
+        }
+        teamByeVars.get(t)!.push({ name: byeVarName, coef: 1 });
+
+        // bye_t_w = 1 if team t is on bye in week w, 0 otherwise
+        byeVars.push({ name: byeVarName, coef: 1 });
+
+        // Link bye variable to game variables:
+        // bye_t_w + sum(games involving team t in week w) = 1
+        const teamGameVars: { name: string; coef: number }[] = [
+          { name: byeVarName, coef: 1 }
+        ];
+
+        for (let m = 0; m < numMatchups; m++) {
+          const matchup = this.matchups[m];
+          if (matchup.home === teamId || matchup.away === teamId) {
+            teamGameVars.push({ name: `x_${m}_${w}`, coef: 1 });
+          }
+        }
+
+        subjectTo.push({
+          name: `bye_link_team_${t}_week_${w}`,
+          vars: teamGameVars,
+          bnds: { type: glpkInstance.GLP_FX, lb: 1, ub: 1 } // Exactly 1
+        });
+      }
+
+      // Limit total bye teams to 6
+      if (byeVars.length > 0) {
+        subjectTo.push({
+          name: `max_bye_teams_week_${w}`,
+          vars: byeVars,
+          bnds: { type: glpkInstance.GLP_UP, lb: 0, ub: 6 }
+        });
+      }
+    }
+
+    // Each team must receive exactly one bye across the allowed weeks
+    for (let t = 0; t < numTeams; t++) {
+      const vars = teamByeVars.get(t) || [];
+      if (vars.length === 0) {
+        continue;
+      }
+
+      subjectTo.push({
+        name: `team_${t}_exactly_one_bye`,
+        vars,
+        bnds: { type: glpkInstance.GLP_FX, lb: 1, ub: 1 }
+      });
     }
   }
 

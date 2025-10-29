@@ -50,12 +50,12 @@ export function filterPreScheduledMatchups(
   preScheduledMatchups: Array<{ home: string; away: string; week: number }>
 ): Array<{ home: string; away: string }> {
   const preScheduledSet = new Set<string>();
-  
-  // Add both home-away and away-home combinations to the set
-  // This ensures we catch matchups regardless of which team is home/away
+
+  // Only remove the exact orientation that was pre-scheduled. This ensures
+  // home-and-home divisional series keep their unscheduled leg available for
+  // the solver even when one meeting is locked in by the starting point data.
   preScheduledMatchups.forEach(m => {
     preScheduledSet.add(`${m.home}-${m.away}`);
-    preScheduledSet.add(`${m.away}-${m.home}`);
   });
   
   return allMatchups.filter(matchup => {
