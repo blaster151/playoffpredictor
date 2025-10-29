@@ -297,45 +297,86 @@ export function generateMatchups(config: ScheduleConfig): Matchup[] {
    }
    console.log(`🔍 Same-place finisher games generated: ${samePlaceGameCount}`);
 
-     // ------------------------------------------------
-   // STEP 5: 17th game (extra inter-conference, same-place finisher)
-   // ------------------------------------------------
-   let extraGameCount = 0;
-   const teamsNeedingExtraGame = new Set<string>();
-   
-   // Only generate 17th game for teams that don't have enough games yet
-   for (const team of teams) {
-     const teamGames = matchups.filter(m => m.home === team.id || m.away === team.id).length;
-     if (teamGames < 17) {
-       teamsNeedingExtraGame.add(team.id);
-     }
-   }
-   
-   console.log(`🔍 Teams needing extra game: ${teamsNeedingExtraGame.size}`);
-   
-   for (const teamId of Array.from(teamsNeedingExtraGame)) {
-     const team = teams.find(t => t.id === teamId);
-     if (!team) continue;
-     
-           const myRank = priorYearStandings[teamId];
-      const myConference = getConference(teamId, teams);
-      const myDivision = getDivision(teamId, teams);
-      const otherConference = getOtherConference(myConference);
-      const targetDivision = getExtraGameDivision(rotationYear, myConference, myDivision);
+  // ------------------------------------------------
+  // STEP 5: 17th game (extra inter-conference, same-place finisher)
+  // ------------------------------------------------
+  let extraGameCount = 0;
+  const teamsNeedingExtraGame = new Set<string>();
+  
+  // Only generate 17th game for teams that don't have enough games yet
+  for (const team of teams) {
+    const teamGames = matchups.filter(m => m.home === team.id || m.away === team.id).length;
+    if (teamGames < 17) {
+      teamsNeedingExtraGame.add(team.id);
+    }
+  }
+  
+  console.log(`🔍 Teams needing extra game: ${teamsNeedingExtraGame.size}`);
+  
+  // Process teams until none need extra games
+  // Use while loop to dynamically check the set (not a snapshot)
+  while (teamsNeedingExtraGame.size > 0) {
+    const teamId = Array.from(teamsNeedingExtraGame)[0]; // Get first team
+    const team = teams.find(t => t.id === teamId);
+    
+    if (!team) {
+      teamsNeedingExtraGame.delete(teamId);
+      continue;
+    }
+    
+    const myRank = priorYearStandings[teamId];
+    const myConference = getConference(teamId, teams);
+    const myDivision = getDivision(teamId, teams);
+    const otherConference = getOtherConference(myConference);
+    const targetDivision = getExtraGameDivision(rotationYear, myConference, myDivision);
+    
+    // Find the full division name for the other conference
+    const fullTargetDivision = `${otherConference}_${targetDivision}`;
+    let opponent = findTeamWithRank(fullTargetDivision, myRank, divisions, priorYearStandings, teamId);
+    
+    // If preferred opponent doesn't need a game, find ANY team in other conference who does
+    if (!opponent || !teamsNeedingExtraGame.has(opponent)) {
+      // Fallback: Find any team in the other conference who still needs a 17th game
+      opponent = Array.from(teamsNeedingExtraGame).find(otherTeamId => {
+        if (otherTeamId === teamId) return false; // Not self
+        const otherTeam = teams.find(t => t.id === otherTeamId);
+        if (!otherTeam) return false;
+        // Must be in other conference
+        if (otherTeam.conference !== otherConference) return false;
+        // Must not already be scheduled against this team
+        return notAlreadyScheduled(teamId, otherTeamId, matchups);
+      }) || null;
       
-      // Find the full division name for the other conference
-      const fullTargetDivision = `${otherConference}_${targetDivision}`;
-     const opponent = findTeamWithRank(fullTargetDivision, myRank, divisions, priorYearStandings, teamId);
-     
-     if (opponent && notAlreadyScheduled(teamId, opponent, matchups)) {
-       const homeTeam = chooseHomeTeam(teamId, opponent, rotationYear);
-       const awayTeam = otherOne(homeTeam, teamId, opponent);
-       
-       matchups.push({ home: homeTeam, away: awayTeam });
-       extraGameCount++;
-     }
-   }
-   console.log(`🔍 Extra 17th games generated: ${extraGameCount}`);
+      if (opponent) {
+        console.log(`    🔄 Fallback: ${teamId} matched with ${opponent} (different rank/division)`);
+      }
+    }
+    
+    // IMPORTANT: Only match with opponents who also need a 17th game!
+    if (opponent && teamsNeedingExtraGame.has(opponent) && notAlreadyScheduled(teamId, opponent, matchups)) {
+      const homeTeam = chooseHomeTeam(teamId, opponent, rotationYear);
+      const awayTeam = otherOne(homeTeam, teamId, opponent);
+      
+      matchups.push({ home: homeTeam, away: awayTeam });
+      extraGameCount++;
+      
+      console.log(`  🏈 17th game #${extraGameCount}: ${awayTeam} @ ${homeTeam}`);
+      
+      // Remove BOTH teams from the set so they don't get matched again
+      teamsNeedingExtraGame.delete(teamId);
+      teamsNeedingExtraGame.delete(opponent);
+      console.log(`    ✅ Removed ${teamId} and ${opponent} from pool (${teamsNeedingExtraGame.size} teams remaining)`);
+    } else {
+      // No valid opponent found, remove this team to avoid infinite loop
+      if (opponent && !teamsNeedingExtraGame.has(opponent)) {
+        console.log(`  ⚠️  ${opponent} already has 17th game, and no fallback found for ${teamId}`);
+      } else {
+        console.log(`  ⚠️  No valid opponent for ${teamId}, removing from pool`);
+      }
+      teamsNeedingExtraGame.delete(teamId);
+    }
+  }
+  console.log(`🔍 Extra 17th games generated: ${extraGameCount}`);
 
   // Log matchup statistics for validation
   console.log('🔍 Generated matchups:', matchups.length);

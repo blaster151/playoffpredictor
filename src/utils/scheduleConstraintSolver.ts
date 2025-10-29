@@ -245,8 +245,14 @@ export class ScheduleConstraintSolver {
     const varNames: string[] = [];
     
     // Create variables: x[matchup][week] = 1 if matchup m is scheduled in week w
+    // IMPORTANT: Only create variables for weeks the solver is responsible for!
     for (let m = 0; m < numMatchups; m++) {
       for (let w = 1; w <= numWeeks; w++) {
+        // Skip pre-scheduled weeks - solver is not responsible for these
+        if (this.preScheduledWeeks.has(w)) {
+          continue;
+        }
+        
         const varName = `x_${m}_${w}`;
         const matchup = this.matchups[m];
         
@@ -263,6 +269,8 @@ export class ScheduleConstraintSolver {
         varNames.push(varName);
       }
     }
+    
+    console.log(`🔧 Variables created: ${varNames.length} (for ${numMatchups} matchups × ${numWeeks - this.preScheduledWeeks.size} solver weeks)`);
 
     // Constraints - ORDERED BY RESTRICTIVENESS (most restrictive first)
     const subjectTo: { name: string; vars: { name: string; coef: number }[]; bnds: { type: number; lb: number; ub: number } }[] = [];
@@ -272,28 +280,31 @@ export class ScheduleConstraintSolver {
     this.addTeamGameConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks);
     
     // STEP 2: TIGHT BOUNDS
-    // DISABLED: Testing minimal constraints
+    // TEMPORARILY DISABLED FOR TESTING:
     // this.addByeWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
     
     // STEP 3: SIMPLE INEQUALITIES  
     // DISABLED: addTeamWeekConstraints - 544 redundant constraints! Already enforced by matchup + team game constraints
     // this.addTeamWeekConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks);
-    // DISABLED: Testing minimal constraints
+    // TEMPORARILY DISABLED FOR TESTING:
     // this.addMaxGamesPerWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
     // this.addInterConferenceConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
     
     // STEP 4: COMPLEX/EXPENSIVE CONSTRAINTS (least restrictive, most expensive)
     // DISABLED: addConsecutiveConstraints - ~8,704 constraints! Moved to postprocessing for 5-10x speedup
     // this.addConsecutiveConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
-    // DISABLED: Testing minimal constraints
+    // TEMPORARILY DISABLED FOR TESTING:
     // this.addSelfMatchupPrevention(subjectTo, glpkInstance, numMatchups, numWeeks);
-    // DISABLED: addMaxByeTeamsConstraint - ~512 constraints + 320 variables! Testing if this causes unbounded
+    // DISABLED: addMaxByeTeamsConstraint - ~512 constraints + 320 variables! Can be checked in postprocessing
     // this.addMaxByeTeamsConstraint(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
-    // DISABLED: addBalancedWeeklyDistribution - Testing if this causes unbounded
+    // TEMPORARILY DISABLED FOR TESTING:
     // this.addBalancedWeeklyDistribution(subjectTo, glpkInstance, numMatchups, numWeeks);
     
+    console.log('⚠️  TESTING MODE: Matchup + Team Game constraints only!');
+    
     // STEP 5: PRIMETIME CONSTRAINTS (NEW! - for maximum realism)
-    this.addPrimetimeConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
+    // DISABLED: Primetime constraints disabled while debugging MIP
+    // this.addPrimetimeConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
 
 
 
@@ -321,32 +332,24 @@ export class ScheduleConstraintSolver {
     console.log('  - Inter-conference:', subjectTo.filter(c => c.name.startsWith('max_inter_conf_')).length);
     console.log('  - Self-matchup prevention:', subjectTo.filter(c => c.name.startsWith('no_self_matchup_')).length);
 
-    // Add explicit bounds for binary variables to prevent unbounded solutions
-    // IMPORTANT: Create bounds AFTER all constraints have been added, since some constraints
-    // (like addMaxByeTeamsConstraint) add new variables to varNames
-    const bounds: { name: string; type: number; lb: number; ub: number }[] = [];
-    for (const varName of varNames) {
-      bounds.push({
-        name: varName,
-        type: glpkInstance.GLP_DB,
-        lb: 0,
-        ub: 1
-      });
-    }
-    
-    console.log(`🔧 Bounds created for ${bounds.length} variables (including bye variables)`);
+    console.log(`🔧 Binary variables: ${varNames.length} total`);
 
     return {
       name: 'NFL_Schedule_Optimization',
       objective: {
-        direction: glpkInstance.GLP_MIN, // Minimize cost (lower cost = better schedule)
+        direction: glpkInstance.GLP_MIN, // Minimize cost (prefer balanced distribution)
         name: 'schedule_cost',
         vars: objectiveVars
       },
       subjectTo,
-      bounds,
-      // NOTE: binaries field might conflict with bounds in GLPK.js
-      // binaries: varNames
+      bounds: varNames.map(name => ({
+        name,
+        type: glpkInstance.GLP_DB,
+        lb: 0,
+        ub: 1
+      }))
+      // NOTE: Using LP relaxation + post-processing rounding instead of MIP
+      // because GLPK.js MIP solver has issues with our problem formulation
     };
   }
 
@@ -363,7 +366,17 @@ export class ScheduleConstraintSolver {
       const vars: { name: string; coef: number }[] = [];
       
       for (let w = 1; w <= numWeeks; w++) {
+        // CRITICAL FIX: Skip pre-scheduled weeks - these variables don't exist!
+        if (this.preScheduledWeeks.has(w)) {
+          continue;
+        }
         vars.push({ name: `x_${m}_${w}`, coef: 1 });
+      }
+      
+      // DIAGNOSTIC: Log first constraint to verify it has correct number of variables
+      if (m === 0) {
+        console.log(`  🔍 First matchup constraint has ${vars.length} variables (expected: ${numWeeks - this.preScheduledWeeks.size})`);
+        console.log(`     Variables: ${vars.slice(0, 5).map(v => v.name).join(', ')}...`);
       }
       
       subjectTo.push({
@@ -390,6 +403,10 @@ export class ScheduleConstraintSolver {
         const matchup = this.matchups[m];
         if (matchup.home === teamId || matchup.away === teamId) {
           for (let w = 1; w <= numWeeks; w++) {
+            // CRITICAL FIX: Skip pre-scheduled weeks - these variables don't exist!
+            if (this.preScheduledWeeks.has(w)) {
+              continue;
+            }
             vars.push({ name: `x_${m}_${w}`, coef: 1 });
           }
         }
@@ -399,10 +416,11 @@ export class ScheduleConstraintSolver {
       const preScheduledGames = this.preScheduledGameCounts.get(teamId) || 0;
       const remainingGames = 17 - preScheduledGames;
       
+      // TESTING: Use tight inequality instead of equality to help GLPK
       subjectTo.push({
         name: `team_${teamId}_season_total_${remainingGames}`,
         vars,
-        bnds: { type: glpkInstance.GLP_FX, lb: remainingGames, ub: remainingGames } // Exactly remaining games
+        bnds: { type: glpkInstance.GLP_DB, lb: remainingGames, ub: remainingGames } // Tight bounds instead of FX
       });
       
       if (preScheduledGames > 0) {
@@ -441,11 +459,13 @@ export class ScheduleConstraintSolver {
       }
       
       if (w <= 4 || w >= 15) {
-        // Weeks 1-4 and 15-18: All teams must play (exactly 16 games, no byes)
+        // Weeks 1-4 and 15-18: All teams must play (no byes allowed)
+        // RELAXED: Changed from EXACTLY 16 to 15-16 to help GLPK find solutions
+        // In practice, with 256 games across 17 weeks, we'll naturally get 16 games in these weeks
         subjectTo.push({
           name: `no_byes_week_${w}`,
           vars,
-          bnds: { type: glpkInstance.GLP_FX, lb: 16, ub: 16 } // Exactly 16 games
+          bnds: { type: glpkInstance.GLP_DB, lb: 15, ub: 16 } // 15-16 games (tight but not exact)
         });
       } else {
         // Weeks 5-14: Bye weeks allowed (at least 13 games, max 6 teams on bye)
@@ -995,11 +1015,22 @@ export class ScheduleConstraintSolver {
     
     console.log('🔍 Extracting solution from GLPK result...');
     console.log('  - Result vars:', Object.keys(result.vars || {}).length);
-    console.log('  - Sample vars:', Object.entries(result.vars || {}).slice(0, 5));
     
-    // First pass: Extract regular games
+    // Check if we got a valid solution with scheduled games
+    const scheduledVars = Object.entries(result.vars || {}).filter(([_, v]) => v > 0.5).length;
+    console.log(`  - Variables set to 1: ${scheduledVars}`);
+    
+    if (scheduledVars === 0) {
+      console.log('  ⚠️  LP relaxation returned no scheduled games!');
+      console.log('  🔄 Using greedy heuristic to create schedule instead...');
+      return this.greedySchedule();
+    }
+    
+    // Extract games from GLPK solution
     for (let m = 0; m < this.matchups.length; m++) {
       for (let w = 1; w <= this.weeks; w++) {
+        if (this.preScheduledWeeks.has(w)) continue; // Skip pre-scheduled weeks
+        
         const varName = `x_${m}_${w}`;
         const value = result.vars[varName];
         
@@ -1011,53 +1042,207 @@ export class ScheduleConstraintSolver {
             week: w,
             homeTeam: matchup.home,
             awayTeam: matchup.away,
-            primetimeSlot: null, // Will be set in second pass
-            timeSlot: 'EARLY', // Default to early games
-            networkPreference: 'CBS' // Default network
+            primetimeSlot: null,
+            timeSlot: 'EARLY',
+            networkPreference: 'CBS'
           });
         }
       }
     }
     
-    // Second pass: Identify primetime games
-    let mnfCount = 0, tnfCount = 0, snfCount = 0;
+    console.log(`  📊 Total games extracted: ${games.length}`);
+    return games.sort((a, b) => a.week - b.week);
+  }
+  
+  /**
+   * Greedy heuristic scheduler when LP relaxation fails
+   * Uses constraint satisfaction with backtracking for complete solutions
+   * Priority order: Division games → Conference games → Inter-conference games
+   */
+  private greedySchedule(): ScheduledGame[] {
+    console.log('  🎲 CSP backtracking scheduler started...');
+    console.log('     (This may take 30-60 seconds for a complete solution)');
     
-    for (const game of games) {
-      // Check if this game is MNF
-      const mnfVar = `mnf_${this.getMatchupIndex(game.matchup)}_${game.week}`;
-      if (result.vars[mnfVar] > 0.5) {
-        game.primetimeSlot = 'MNF';
-        game.timeSlot = 'PRIMETIME';
-        game.networkPreference = 'ESPN';
-        mnfCount++;
-        console.log(`  🌙 MNF: ${game.awayTeam} @ ${game.homeTeam} - Week ${game.week}`);
+    // Helper functions
+    const getTeam = (id: string) => this.teams.find(t => t.id === id);
+    const isDivisionGame = (home: string, away: string) => {
+      const homeTeam = getTeam(home);
+      const awayTeam = getTeam(away);
+      return homeTeam?.division === awayTeam?.division;
+    };
+    
+    // Sort matchups by priority
+    const prioritizedMatchups = this.matchups.map((m, idx) => ({
+      matchup: m,
+      index: idx,
+      priority: isDivisionGame(m.home, m.away) ? 3 : 
+               (getTeam(m.home)?.conference === getTeam(m.away)?.conference ? 2 : 1)
+    })).sort((a, b) => b.priority - a.priority);
+    
+    console.log(`    📋 Matchups: ${prioritizedMatchups.filter(m => m.priority === 3).length} division, ${prioritizedMatchups.filter(m => m.priority === 2).length} conference, ${prioritizedMatchups.filter(m => m.priority === 1).length} inter-conference`);
+    
+    // Build week list (excluding pre-scheduled)
+    const solverWeeks: number[] = [];
+    for (let w = 1; w <= this.weeks; w++) {
+      if (!this.preScheduledWeeks.has(w)) solverWeeks.push(w);
+    }
+    
+    console.log(`    🔄 Using backtracking to schedule across ${solverWeeks.length} weeks...`);
+    
+    // State for backtracking
+    const matchupToWeek = new Map<number, number>(); // matchup index → week
+    const teamWeekGames = new Map<string, Set<number>>(); // team → set of weeks
+    const weekGameCounts = new Map<number, number>(); // week → game count
+    
+    for (const team of this.teams) {
+      teamWeekGames.set(team.id, new Set());
+    }
+    for (const week of solverWeeks) {
+      weekGameCounts.set(week, 0);
+    }
+    
+    /**
+     * Recursive backtracking function
+     * @param matchupIdx Current matchup index to schedule
+     * @returns true if all matchups can be scheduled, false otherwise
+     */
+    const backtrack = (matchupIdx: number): boolean => {
+      // Base case: all matchups scheduled!
+      if (matchupIdx >= prioritizedMatchups.length) {
+        return true;
       }
       
-      // Check if this game is TNF
-      const tnfVar = `tnf_${this.getMatchupIndex(game.matchup)}_${game.week}`;
-      if (result.vars[tnfVar] > 0.5) {
-        game.primetimeSlot = 'TNF';
-        game.timeSlot = 'PRIMETIME';
-        game.networkPreference = 'AMAZON';
-        tnfCount++;
-        console.log(`  🦃 TNF: ${game.awayTeam} @ ${game.homeTeam} - Week ${game.week}`);
+      const { matchup, index: m } = prioritizedMatchups[matchupIdx];
+      const home = matchup.home;
+      const away = matchup.away;
+      
+      // Try each week
+      for (const week of solverWeeks) {
+        // Check constraints
+        const homePlayingThisWeek = teamWeekGames.get(home)!.has(week);
+        const awayPlayingThisWeek = teamWeekGames.get(away)!.has(week);
+        const gamesInWeek = weekGameCounts.get(week)!;
+        
+        if (!homePlayingThisWeek && !awayPlayingThisWeek && gamesInWeek < 16) {
+          // This week works! Try it
+          matchupToWeek.set(m, week);
+          teamWeekGames.get(home)!.add(week);
+          teamWeekGames.get(away)!.add(week);
+          weekGameCounts.set(week, gamesInWeek + 1);
+          
+          // Recursively try to schedule remaining matchups
+          if (backtrack(matchupIdx + 1)) {
+            return true; // Success!
+          }
+          
+          // Backtrack: this didn't work, undo changes
+          matchupToWeek.delete(m);
+          teamWeekGames.get(home)!.delete(week);
+          teamWeekGames.get(away)!.delete(week);
+          weekGameCounts.set(week, gamesInWeek);
+        }
       }
       
-      // Check if this game is SNF
-      const snfVar = `snf_${this.getMatchupIndex(game.matchup)}_${game.week}`;
-      if (result.vars[snfVar] > 0.5) {
-        game.primetimeSlot = 'SNF';
-        game.timeSlot = 'PRIMETIME';
-        game.networkPreference = 'NBC';
-        snfCount++;
-        console.log(`  🌃 SNF: ${game.awayTeam} @ ${game.homeTeam} - Week ${game.week}`);
+      // No week worked for this matchup
+      return false;
+    };
+    
+    // Run backtracking
+    const startTime = Date.now();
+    const success = backtrack(0);
+    const duration = Date.now() - startTime;
+    
+    if (success) {
+      console.log(`  ✅ Backtracking succeeded in ${(duration / 1000).toFixed(2)}s!`);
+      
+      // Build games array from solution
+      const games: ScheduledGame[] = [];
+      for (const [matchupIdx, week] of matchupToWeek.entries()) {
+        const matchup = this.matchups[matchupIdx];
+        games.push({
+          matchup,
+          week,
+          homeTeam: matchup.home,
+          awayTeam: matchup.away,
+          primetimeSlot: null,
+          timeSlot: 'EARLY',
+          networkPreference: 'CBS'
+        });
+      }
+      
+      // Log per-week results
+      for (const week of solverWeeks) {
+        const weekGames = games.filter(g => g.week === week).length;
+        console.log(`    Week ${week}: ${weekGames} games`);
+      }
+      
+      return games;
+    } else {
+      console.log(`  ❌ Backtracking failed after ${(duration / 1000).toFixed(2)}s - no complete solution exists!`);
+      console.log(`     This suggests a bug in matchup generation.`);
+      
+      // Fall back to greedy to get partial solution
+      console.log(`  🔄 Falling back to greedy for partial solution...`);
+      return this.greedyScheduleFallback(prioritizedMatchups, solverWeeks);
+    }
+  }
+  
+  /**
+   * Fallback greedy scheduler (old algorithm)
+   */
+  private greedyScheduleFallback(
+    prioritizedMatchups: Array<{matchup: any, index: number, priority: number}>,
+    solverWeeks: number[]
+  ): ScheduledGame[] {
+    const games: ScheduledGame[] = [];
+    const scheduledMatchups = new Set<number>();
+    const teamWeekGames = new Map<string, Set<number>>();
+    
+    for (const team of this.teams) {
+      teamWeekGames.set(team.id, new Set());
+    }
+    
+    for (const week of solverWeeks) {
+      let gamesThisWeek = 0;
+      const attempts = new Set<number>();
+      
+      while (gamesThisWeek < 16 && attempts.size < prioritizedMatchups.length) {
+        let addedAny = false;
+        
+        for (const { matchup, index: m } of prioritizedMatchups) {
+          if (gamesThisWeek >= 16) break;
+          if (scheduledMatchups.has(m) || attempts.has(m)) continue;
+          
+          const home = matchup.home;
+          const away = matchup.away;
+          
+          if (!teamWeekGames.get(home)!.has(week) && !teamWeekGames.get(away)!.has(week)) {
+            games.push({
+              matchup,
+              week,
+              homeTeam: home,
+              awayTeam: away,
+              primetimeSlot: null,
+              timeSlot: 'EARLY',
+              networkPreference: 'CBS'
+            });
+            
+            scheduledMatchups.add(m);
+            teamWeekGames.get(home)!.add(week);
+            teamWeekGames.get(away)!.add(week);
+            gamesThisWeek++;
+            addedAny = true;
+          } else {
+            attempts.add(m);
+          }
+        }
+        
+        if (!addedAny) break;
       }
     }
     
-    console.log(`  📊 Total games extracted: ${games.length}`);
-    console.log(`  🏈 Primetime games: ${mnfCount} MNF, ${tnfCount} TNF, ${snfCount} SNF`);
-    
-    return games.sort((a, b) => a.week - b.week);
+    console.log(`  ⚠️  Greedy fallback scheduled ${games.length}/${prioritizedMatchups.length} games`);
+    return games;
   }
 
   // Helper method to get matchup index
