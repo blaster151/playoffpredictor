@@ -1,0 +1,564 @@
+Starting solver test...
+
+🧪 Testing Current Solver Configuration
+
+============================================================
+📅 Loading pre-scheduled data...
+  - Pre-scheduled weeks: 1
+  - Pre-scheduled games: 16
+  - Teams with pre-scheduled games: 32
+
+📋 Generating matchups...
+🔍 Division AFC_North: 4 teams
+🔍 Division AFC_South: 4 teams
+🔍 Division AFC_East: 4 teams
+🔍 Division AFC_West: 4 teams
+🔍 Division NFC_North: 4 teams
+🔍 Division NFC_South: 4 teams
+🔍 Division NFC_East: 4 teams
+🔍 Division NFC_West: 4 teams
+🔍 Division games generated: 96
+🔍 Conference AFC: shortDivisions=North,South,East,West, intraMatchups=[["North","South"],["East","West"]]
+🔍 Conference NFC: shortDivisions=North,South,East,West, intraMatchups=[["North","South"],["East","West"]]
+🔍 Intra-conference games generated: 64
+🔍 Inter-conference matchups for year 2026: [
+  [ 'AFC_North', 'NFC_South' ],
+  [ 'AFC_South', 'NFC_East' ],
+  [ 'AFC_East', 'NFC_West' ],
+  [ 'AFC_West', 'NFC_North' ]
+]
+🔍 Inter-conference games generated: 64
+🔍 Same-place finisher games generated: 32
+🔍 Teams needing extra game: 32
+  🏈 17th game #1: ravens @ packers
+    ✅ Removed ravens and packers from pool (30 teams remaining)
+  🏈 17th game #2: browns @ lions
+    ✅ Removed browns and lions from pool (28 teams remaining)
+  🏈 17th game #3: bears @ bengals
+    ✅ Removed bengals and bears from pool (26 teams remaining)
+  🏈 17th game #4: vikings @ steelers
+    ✅ Removed steelers and vikings from pool (24 teams remaining)
+    🔄 Fallback: texans matched with falcons (different rank/division)
+  🏈 17th game #5: texans @ falcons
+    ✅ Removed texans and falcons from pool (22 teams remaining)
+    🔄 Fallback: colts matched with panthers (different rank/division)
+  🏈 17th game #6: colts @ panthers
+    ✅ Removed colts and panthers from pool (20 teams remaining)
+    🔄 Fallback: jaguars matched with saints (different rank/division)
+  🏈 17th game #7: jaguars @ saints
+    ✅ Removed jaguars and saints from pool (18 teams remaining)
+    🔄 Fallback: titans matched with buccaneers (different rank/division)
+  🏈 17th game #8: buccaneers @ titans
+    ✅ Removed titans and buccaneers from pool (16 teams remaining)
+    🔄 Fallback: bills matched with cowboys (different rank/division)
+  🏈 17th game #9: cowboys @ bills
+    ✅ Removed bills and cowboys from pool (14 teams remaining)
+    🔄 Fallback: dolphins matched with eagles (different rank/division)
+  🏈 17th game #10: dolphins @ eagles
+    ✅ Removed dolphins and eagles from pool (12 teams remaining)
+    🔄 Fallback: jets matched with giants (different rank/division)
+  🏈 17th game #11: jets @ giants
+    ✅ Removed jets and giants from pool (10 teams remaining)
+    🔄 Fallback: patriots matched with commanders (different rank/division)
+  🏈 17th game #12: patriots @ commanders
+    ✅ Removed patriots and commanders from pool (8 teams remaining)
+    🔄 Fallback: chiefs matched with cardinals (different rank/division)
+  🏈 17th game #13: cardinals @ chiefs
+    ✅ Removed chiefs and cardinals from pool (6 teams remaining)
+    🔄 Fallback: raiders matched with rams (different rank/division)
+  🏈 17th game #14: raiders @ rams
+    ✅ Removed raiders and rams from pool (4 teams remaining)
+    🔄 Fallback: chargers matched with 49ers (different rank/division)
+  🏈 17th game #15: 49ers @ chargers
+    ✅ Removed chargers and 49ers from pool (2 teams remaining)
+    🔄 Fallback: broncos matched with seahawks (different rank/division)
+  🏈 17th game #16: broncos @ seahawks
+    ✅ Removed broncos and seahawks from pool (0 teams remaining)
+🔍 Extra 17th games generated: 16
+🔍 Generated matchups: 272
+🔍 Rotation year: 2026
+🔍 Divisions: [
+  'AFC_North',
+  'AFC_South',
+  'AFC_East',
+  'AFC_West',
+  'NFC_North',
+  'NFC_South',
+  'NFC_East',
+  'NFC_West'
+]
+🔍 Conferences: [ 'AFC', 'NFC' ]
+📊 Matchup Statistics:
+   Division Games: 96 (expected: 96)
+   Intra-Conference Games: 96 (expected: 96)
+   Inter-Conference Games: 80 (expected: 80)
+   Total Games: 272 (expected: 272)
+  - Total matchups generated: 272
+  🔍 Filtering out pre-scheduled matchup: titans @ jaguars
+  🔍 Filtering out pre-scheduled matchup: jaguars @ titans
+  🔍 Filtering out pre-scheduled matchup: dolphins @ bills
+  🔍 Filtering out pre-scheduled matchup: bills @ dolphins
+  🔍 Filtering out pre-scheduled matchup: giants @ cowboys
+  🔍 Filtering out pre-scheduled matchup: cowboys @ giants
+  🔍 Filtering out pre-scheduled matchup: browns @ colts
+  🔍 Filtering out pre-scheduled matchup: jets @ chiefs
+  🔍 Filtering out pre-scheduled matchup: patriots @ broncos
+  🔍 Filtering out pre-scheduled matchup: falcons @ bears
+  🔍 Filtering out pre-scheduled matchup: 49ers @ commanders
+  🔍 Filtering out pre-scheduled matchup: panthers @ ravens
+  🔍 Filtering out pre-scheduled matchup: saints @ bengals
+  🔍 Filtering out pre-scheduled matchup: eagles @ texans
+  🔍 Filtering out pre-scheduled matchup: lions @ chargers
+  🔍 Filtering out pre-scheduled matchup: vikings @ steelers
+  - Matchups for solver: 256
+  - Matchups already scheduled: 16
+
+📊 Expected Statistics:
+  - Total games needed: 272
+  - Pre-scheduled games: 16
+  - Solver needs to schedule: 256
+  - Teams: 32
+  - Weeks: 18 (solver responsible for 2-18)
+
+🔧 Creating solver with current configuration...
+  Constraints:
+    - maxGamesPerWeek: 18
+    - byeWeekDistribution: balanced
+    - preventConsecutiveRematches: true (DISABLED in solver, moved to postprocessing)
+    - Primetime: ALL DISABLED
+    - Consecutive rematches: DISABLED (moved to postprocessing)
+    - Team week constraints: DISABLED (redundant)
+
+⏳ Solving (this may take a while)...
+  - Timeout: 5 minutes (300 seconds)
+  - If this hangs, press Ctrl+C after 30 seconds
+
+🧮 Initializing GLPK solver...
+📋 Creating linear programming problem...
+🔧 Variables created: 4352 (for 256 matchups × 17 solver weeks)
+  🔍 First matchup constraint has 17 variables (expected: 17)
+     Variables: x_0_2, x_0_3, x_0_4, x_0_5, x_0_6...
+  ⏭️  Week 1 is pre-scheduled, skipping bye week constraint
+  ⏭️  Week 1 is pre-scheduled, skipping balanced distribution constraint
+🧪 TESTING: Team game constraints DISABLED (testing if redundant)
+🔧 GLPK Problem Stats (CORE CONSTRAINTS ONLY):
+  - Variables: 4352
+  - Constraints: 324
+  - Matchups: 256
+  - Teams: 32
+  - Weeks: 18
+  ✅ Bye weeks prevented in weeks 1-4 and 15-18
+  ✅ Inter-conference distribution limits
+  ✅ Maximum 6 teams on bye per week
+  ✅ Balanced weekly distribution
+  ✅ Constraint ordering optimized (EQUALITY → TIGHT → INEQUALITIES → COMPLEX)
+  ⚠️  PRIMETIME CONSTRAINTS DISABLED (too complex for solver)
+    - Game times will be assigned in postprocessing phase
+    - This significantly reduces solver complexity
+  - Consecutive rematches prevented: true
+  - Sample constraints: [
+  {
+    name: 'matchup_0_exactly_once',
+    vars: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    bnds: { type: 5, lb: 1, ub: 1 }
+  },
+  {
+    name: 'matchup_1_exactly_once',
+    vars: [
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object], [Object],
+      [Object]
+    ],
+    bnds: { type: 5, lb: 1, ub: 1 }
+  }
+]
+🔍 Constraint breakdown:
+  - Matchup constraints: 256
+  - Team game constraints: 0
+  - Bye week constraints: 17
+  - Max games per week: 17
+  - Inter-conference: 17
+  - Self-matchup prevention: 0
+🔧 Binary variables: 4352 total
+🔧 Solving with GLPK (this may take a while)...
+   - Variables: 4352
+   - Constraints: 324
+   - Timeout: 5 minutes (300 seconds)
+   - Please be patient, this is a complex optimization problem...
+🔍 GLPK Result Summary:
+  - Time: 0.94ms
+  - Status: 5
+  - Objective: 252.3
+  - Variables set: 256
+🔍 GLPK Status Code: 5
+🔍 Extracting solution from GLPK result...
+  - Result vars: 4352
+  - Variables set to 1: 256
+  ✅ Found game: browns @ ravens in Week 18 (value: 1)
+  ✅ Found game: ravens @ browns in Week 2 (value: 1)
+  ✅ Found game: bengals @ ravens in Week 2 (value: 1)
+  ✅ Found game: ravens @ bengals in Week 2 (value: 1)
+  ✅ Found game: steelers @ ravens in Week 2 (value: 1)
+  ✅ Found game: ravens @ steelers in Week 2 (value: 1)
+  ✅ Found game: bengals @ browns in Week 2 (value: 1)
+  ✅ Found game: browns @ bengals in Week 18 (value: 1)
+  ✅ Found game: steelers @ browns in Week 3 (value: 1)
+  ✅ Found game: browns @ steelers in Week 3 (value: 1)
+  ✅ Found game: steelers @ bengals in Week 3 (value: 1)
+  ✅ Found game: bengals @ steelers in Week 3 (value: 1)
+  ✅ Found game: colts @ texans in Week 3 (value: 1)
+  ✅ Found game: texans @ colts in Week 3 (value: 1)
+  ✅ Found game: jaguars @ texans in Week 4 (value: 1)
+  ✅ Found game: texans @ jaguars in Week 4 (value: 1)
+  ✅ Found game: titans @ texans in Week 4 (value: 1)
+  ✅ Found game: texans @ titans in Week 4 (value: 1)
+  ✅ Found game: jaguars @ colts in Week 4 (value: 1)
+  ✅ Found game: colts @ jaguars in Week 4 (value: 1)
+  ✅ Found game: titans @ colts in Week 4 (value: 1)
+  ✅ Found game: colts @ titans in Week 12 (value: 1)
+  ✅ Found game: jets @ bills in Week 12 (value: 1)
+  ✅ Found game: bills @ jets in Week 18 (value: 1)
+  ✅ Found game: patriots @ bills in Week 5 (value: 1)
+  ✅ Found game: bills @ patriots in Week 5 (value: 1)
+  ✅ Found game: jets @ dolphins in Week 5 (value: 1)
+  ✅ Found game: dolphins @ jets in Week 5 (value: 1)
+  ✅ Found game: patriots @ dolphins in Week 6 (value: 1)
+  ✅ Found game: dolphins @ patriots in Week 6 (value: 1)
+  ✅ Found game: patriots @ jets in Week 6 (value: 1)
+  ✅ Found game: jets @ patriots in Week 6 (value: 1)
+  ✅ Found game: raiders @ chiefs in Week 6 (value: 1)
+  ✅ Found game: chiefs @ raiders in Week 6 (value: 1)
+  ✅ Found game: chargers @ chiefs in Week 6 (value: 1)
+  ✅ Found game: chiefs @ chargers in Week 7 (value: 1)
+  ✅ Found game: broncos @ chiefs in Week 7 (value: 1)
+  ✅ Found game: chiefs @ broncos in Week 7 (value: 1)
+  ✅ Found game: chargers @ raiders in Week 7 (value: 1)
+  ✅ Found game: raiders @ chargers in Week 7 (value: 1)
+  ✅ Found game: broncos @ raiders in Week 7 (value: 1)
+  ✅ Found game: raiders @ broncos in Week 7 (value: 1)
+  ✅ Found game: broncos @ chargers in Week 8 (value: 1)
+  ✅ Found game: chargers @ broncos in Week 8 (value: 1)
+  ✅ Found game: lions @ bears in Week 8 (value: 1)
+  ✅ Found game: bears @ lions in Week 8 (value: 1)
+  ✅ Found game: packers @ bears in Week 8 (value: 1)
+  ✅ Found game: bears @ packers in Week 8 (value: 1)
+  ✅ Found game: vikings @ bears in Week 8 (value: 1)
+  ✅ Found game: bears @ vikings in Week 9 (value: 1)
+  ✅ Found game: packers @ lions in Week 9 (value: 1)
+  ✅ Found game: lions @ packers in Week 9 (value: 1)
+  ✅ Found game: vikings @ lions in Week 9 (value: 1)
+  ✅ Found game: lions @ vikings in Week 9 (value: 1)
+  ✅ Found game: vikings @ packers in Week 9 (value: 1)
+  ✅ Found game: packers @ vikings in Week 9 (value: 1)
+  ✅ Found game: panthers @ falcons in Week 10 (value: 1)
+  ✅ Found game: falcons @ panthers in Week 10 (value: 1)
+  ✅ Found game: saints @ falcons in Week 10 (value: 1)
+  ✅ Found game: falcons @ saints in Week 10 (value: 1)
+  ✅ Found game: buccaneers @ falcons in Week 10 (value: 1)
+  ✅ Found game: falcons @ buccaneers in Week 10 (value: 1)
+  ✅ Found game: saints @ panthers in Week 10 (value: 1)
+  ✅ Found game: panthers @ saints in Week 11 (value: 1)
+  ✅ Found game: buccaneers @ panthers in Week 11 (value: 1)
+  ✅ Found game: panthers @ buccaneers in Week 11 (value: 1)
+  ✅ Found game: buccaneers @ saints in Week 11 (value: 1)
+  ✅ Found game: saints @ buccaneers in Week 11 (value: 1)
+  ✅ Found game: eagles @ cowboys in Week 11 (value: 1)
+  ✅ Found game: cowboys @ eagles in Week 11 (value: 1)
+  ✅ Found game: commanders @ cowboys in Week 12 (value: 1)
+  ✅ Found game: cowboys @ commanders in Week 12 (value: 1)
+  ✅ Found game: giants @ eagles in Week 12 (value: 1)
+  ✅ Found game: eagles @ giants in Week 12 (value: 1)
+  ✅ Found game: commanders @ eagles in Week 12 (value: 1)
+  ✅ Found game: eagles @ commanders in Week 12 (value: 1)
+  ✅ Found game: commanders @ giants in Week 12 (value: 1)
+  ✅ Found game: giants @ commanders in Week 13 (value: 1)
+  ✅ Found game: rams @ cardinals in Week 13 (value: 1)
+  ✅ Found game: cardinals @ rams in Week 13 (value: 1)
+  ✅ Found game: 49ers @ cardinals in Week 13 (value: 1)
+  ✅ Found game: cardinals @ 49ers in Week 13 (value: 1)
+  ✅ Found game: seahawks @ cardinals in Week 13 (value: 1)
+  ✅ Found game: cardinals @ seahawks in Week 13 (value: 1)
+  ✅ Found game: 49ers @ rams in Week 13 (value: 1)
+  ✅ Found game: rams @ 49ers in Week 13 (value: 1)
+  ✅ Found game: seahawks @ rams in Week 13 (value: 1)
+  ✅ Found game: rams @ seahawks in Week 14 (value: 1)
+  ✅ Found game: seahawks @ 49ers in Week 14 (value: 1)
+  ✅ Found game: 49ers @ seahawks in Week 14 (value: 1)
+  ✅ Found game: ravens @ texans in Week 14 (value: 1)
+  ✅ Found game: ravens @ colts in Week 14 (value: 1)
+  ✅ Found game: ravens @ jaguars in Week 14 (value: 1)
+  ✅ Found game: ravens @ titans in Week 14 (value: 1)
+  ✅ Found game: browns @ texans in Week 14 (value: 1)
+  ✅ Found game: browns @ jaguars in Week 14 (value: 1)
+  ✅ Found game: browns @ titans in Week 14 (value: 1)
+  ✅ Found game: bengals @ texans in Week 14 (value: 1)
+  ✅ Found game: bengals @ colts in Week 14 (value: 1)
+  ✅ Found game: bengals @ jaguars in Week 14 (value: 1)
+  ✅ Found game: bengals @ titans in Week 15 (value: 1)
+  ✅ Found game: steelers @ texans in Week 15 (value: 1)
+  ✅ Found game: steelers @ colts in Week 15 (value: 1)
+  ✅ Found game: steelers @ jaguars in Week 15 (value: 1)
+  ✅ Found game: steelers @ titans in Week 15 (value: 1)
+  ✅ Found game: bills @ chiefs in Week 15 (value: 1)
+  ✅ Found game: bills @ raiders in Week 15 (value: 1)
+  ✅ Found game: bills @ chargers in Week 15 (value: 1)
+  ✅ Found game: bills @ broncos in Week 15 (value: 1)
+  ✅ Found game: dolphins @ chiefs in Week 15 (value: 1)
+  ✅ Found game: dolphins @ raiders in Week 15 (value: 1)
+  ✅ Found game: dolphins @ chargers in Week 15 (value: 1)
+  ✅ Found game: dolphins @ broncos in Week 15 (value: 1)
+  ✅ Found game: jets @ raiders in Week 16 (value: 1)
+  ✅ Found game: jets @ chargers in Week 16 (value: 1)
+  ✅ Found game: jets @ broncos in Week 16 (value: 1)
+  ✅ Found game: patriots @ chiefs in Week 16 (value: 1)
+  ✅ Found game: patriots @ raiders in Week 16 (value: 1)
+  ✅ Found game: patriots @ chargers in Week 16 (value: 1)
+  ✅ Found game: panthers @ bears in Week 16 (value: 1)
+  ✅ Found game: saints @ bears in Week 16 (value: 1)
+  ✅ Found game: buccaneers @ bears in Week 16 (value: 1)
+  ✅ Found game: falcons @ lions in Week 16 (value: 1)
+  ✅ Found game: panthers @ lions in Week 16 (value: 1)
+  ✅ Found game: saints @ lions in Week 16 (value: 1)
+  ✅ Found game: buccaneers @ lions in Week 16 (value: 1)
+  ✅ Found game: falcons @ packers in Week 17 (value: 1)
+  ✅ Found game: panthers @ packers in Week 17 (value: 1)
+  ✅ Found game: saints @ packers in Week 17 (value: 1)
+  ✅ Found game: buccaneers @ packers in Week 17 (value: 1)
+  ✅ Found game: falcons @ vikings in Week 17 (value: 1)
+  ✅ Found game: panthers @ vikings in Week 17 (value: 1)
+  ✅ Found game: saints @ vikings in Week 17 (value: 1)
+  ✅ Found game: buccaneers @ vikings in Week 17 (value: 1)
+  ✅ Found game: cardinals @ cowboys in Week 17 (value: 1)
+  ✅ Found game: rams @ cowboys in Week 17 (value: 1)
+  ✅ Found game: cowboys @ 49ers in Week 17 (value: 1)
+  ✅ Found game: cowboys @ seahawks in Week 17 (value: 1)
+  ✅ Found game: eagles @ cardinals in Week 17 (value: 1)
+  ✅ Found game: eagles @ rams in Week 2 (value: 1)
+  ✅ Found game: 49ers @ eagles in Week 2 (value: 1)
+  ✅ Found game: eagles @ seahawks in Week 3 (value: 1)
+  ✅ Found game: giants @ cardinals in Week 3 (value: 1)
+  ✅ Found game: giants @ rams in Week 11 (value: 1)
+  ✅ Found game: 49ers @ giants in Week 4 (value: 1)
+  ✅ Found game: giants @ seahawks in Week 15 (value: 1)
+  ✅ Found game: commanders @ cardinals in Week 15 (value: 1)
+  ✅ Found game: commanders @ rams in Week 16 (value: 1)
+  ✅ Found game: commanders @ seahawks in Week 16 (value: 1)
+  ✅ Found game: falcons @ ravens in Week 2 (value: 1)
+  ✅ Found game: saints @ ravens in Week 2 (value: 1)
+  ✅ Found game: buccaneers @ ravens in Week 2 (value: 1)
+  ✅ Found game: falcons @ browns in Week 2 (value: 1)
+  ✅ Found game: panthers @ browns in Week 2 (value: 1)
+  ✅ Found game: saints @ browns in Week 2 (value: 1)
+  ✅ Found game: buccaneers @ browns in Week 3 (value: 1)
+  ✅ Found game: falcons @ bengals in Week 3 (value: 1)
+  ✅ Found game: panthers @ bengals in Week 3 (value: 1)
+  ✅ Found game: buccaneers @ bengals in Week 3 (value: 1)
+  ✅ Found game: falcons @ steelers in Week 3 (value: 1)
+  ✅ Found game: panthers @ steelers in Week 3 (value: 1)
+  ✅ Found game: saints @ steelers in Week 4 (value: 1)
+  ✅ Found game: buccaneers @ steelers in Week 4 (value: 1)
+  ✅ Found game: cowboys @ texans in Week 4 (value: 1)
+  ✅ Found game: giants @ texans in Week 4 (value: 1)
+  ✅ Found game: commanders @ texans in Week 4 (value: 1)
+  ✅ Found game: cowboys @ colts in Week 4 (value: 1)
+  ✅ Found game: eagles @ colts in Week 5 (value: 1)
+  ✅ Found game: giants @ colts in Week 5 (value: 1)
+  ✅ Found game: commanders @ colts in Week 5 (value: 1)
+  ✅ Found game: cowboys @ jaguars in Week 5 (value: 1)
+  ✅ Found game: eagles @ jaguars in Week 5 (value: 1)
+  ✅ Found game: giants @ jaguars in Week 5 (value: 1)
+  ✅ Found game: commanders @ jaguars in Week 6 (value: 1)
+  ✅ Found game: cowboys @ titans in Week 6 (value: 1)
+  ✅ Found game: eagles @ titans in Week 6 (value: 1)
+  ✅ Found game: giants @ titans in Week 6 (value: 1)
+  ✅ Found game: commanders @ titans in Week 6 (value: 1)
+  ✅ Found game: cardinals @ bills in Week 6 (value: 1)
+  ✅ Found game: rams @ bills in Week 7 (value: 1)
+  ✅ Found game: bills @ 49ers in Week 7 (value: 1)
+  ✅ Found game: seahawks @ bills in Week 7 (value: 1)
+  ✅ Found game: cardinals @ dolphins in Week 7 (value: 1)
+  ✅ Found game: rams @ dolphins in Week 7 (value: 1)
+  ✅ Found game: dolphins @ 49ers in Week 7 (value: 1)
+  ✅ Found game: seahawks @ dolphins in Week 8 (value: 1)
+  ✅ Found game: cardinals @ jets in Week 8 (value: 1)
+  ✅ Found game: rams @ jets in Week 8 (value: 1)
+  ✅ Found game: jets @ 49ers in Week 8 (value: 1)
+  ✅ Found game: seahawks @ jets in Week 8 (value: 1)
+  ✅ Found game: cardinals @ patriots in Week 8 (value: 1)
+  ✅ Found game: rams @ patriots in Week 9 (value: 1)
+  ✅ Found game: patriots @ 49ers in Week 9 (value: 1)
+  ✅ Found game: seahawks @ patriots in Week 9 (value: 1)
+  ✅ Found game: bears @ chiefs in Week 9 (value: 1)
+  ✅ Found game: lions @ chiefs in Week 9 (value: 1)
+  ✅ Found game: packers @ chiefs in Week 9 (value: 1)
+  ✅ Found game: vikings @ chiefs in Week 10 (value: 1)
+  ✅ Found game: bears @ raiders in Week 10 (value: 1)
+  ✅ Found game: lions @ raiders in Week 10 (value: 1)
+  ✅ Found game: packers @ raiders in Week 10 (value: 1)
+  ✅ Found game: vikings @ raiders in Week 10 (value: 1)
+  ✅ Found game: bears @ chargers in Week 10 (value: 1)
+  ✅ Found game: packers @ chargers in Week 11 (value: 1)
+  ✅ Found game: vikings @ chargers in Week 11 (value: 1)
+  ✅ Found game: bears @ broncos in Week 11 (value: 1)
+  ✅ Found game: lions @ broncos in Week 11 (value: 1)
+  ✅ Found game: broncos @ packers in Week 11 (value: 1)
+  ✅ Found game: broncos @ vikings in Week 11 (value: 1)
+  ✅ Found game: jets @ ravens in Week 17 (value: 1)
+  ✅ Found game: chiefs @ ravens in Week 17 (value: 1)
+  ✅ Found game: dolphins @ browns in Week 2 (value: 1)
+  ✅ Found game: chargers @ browns in Week 3 (value: 1)
+  ✅ Found game: bengals @ bills in Week 4 (value: 1)
+  ✅ Found game: bengals @ broncos in Week 5 (value: 1)
+  ✅ Found game: steelers @ patriots in Week 5 (value: 1)
+  ✅ Found game: steelers @ raiders in Week 5 (value: 1)
+  ✅ Found game: texans @ jets in Week 6 (value: 1)
+  ✅ Found game: chiefs @ texans in Week 6 (value: 1)
+  ✅ Found game: bills @ colts in Week 6 (value: 1)
+  ✅ Found game: broncos @ colts in Week 7 (value: 1)
+  ✅ Found game: dolphins @ jaguars in Week 7 (value: 1)
+  ✅ Found game: jaguars @ chargers in Week 7 (value: 1)
+  ✅ Found game: titans @ patriots in Week 8 (value: 1)
+  ✅ Found game: titans @ raiders in Week 8 (value: 1)
+  ✅ Found game: bears @ commanders in Week 8 (value: 1)
+  ✅ Found game: 49ers @ bears in Week 9 (value: 1)
+  ✅ Found game: cowboys @ lions in Week 9 (value: 1)
+  ✅ Found game: cardinals @ lions in Week 9 (value: 1)
+  ✅ Found game: eagles @ packers in Week 10 (value: 1)
+  ✅ Found game: rams @ packers in Week 10 (value: 1)
+  ✅ Found game: giants @ vikings in Week 10 (value: 1)
+  ✅ Found game: seahawks @ vikings in Week 11 (value: 1)
+  ✅ Found game: cowboys @ falcons in Week 11 (value: 1)
+  ✅ Found game: cardinals @ falcons in Week 12 (value: 1)
+  ✅ Found game: eagles @ panthers in Week 18 (value: 1)
+  ✅ Found game: rams @ panthers in Week 18 (value: 1)
+  ✅ Found game: giants @ saints in Week 18 (value: 1)
+  ✅ Found game: seahawks @ saints in Week 18 (value: 1)
+  ✅ Found game: commanders @ buccaneers in Week 18 (value: 1)
+  ✅ Found game: buccaneers @ 49ers in Week 18 (value: 1)
+  ✅ Found game: ravens @ packers in Week 12 (value: 1)
+  ✅ Found game: browns @ lions in Week 12 (value: 1)
+  ✅ Found game: bears @ bengals in Week 12 (value: 1)
+  ✅ Found game: texans @ falcons in Week 12 (value: 1)
+  ✅ Found game: colts @ panthers in Week 12 (value: 1)
+  ✅ Found game: jaguars @ saints in Week 12 (value: 1)
+  ✅ Found game: buccaneers @ titans in Week 13 (value: 1)
+  ✅ Found game: cowboys @ bills in Week 13 (value: 1)
+  ✅ Found game: dolphins @ eagles in Week 13 (value: 1)
+  ✅ Found game: jets @ giants in Week 18 (value: 1)
+  ✅ Found game: patriots @ commanders in Week 18 (value: 1)
+  ✅ Found game: cardinals @ chiefs in Week 18 (value: 1)
+  ✅ Found game: raiders @ rams in Week 18 (value: 1)
+  ✅ Found game: 49ers @ chargers in Week 18 (value: 1)
+  ✅ Found game: broncos @ seahawks in Week 18 (value: 1)
+  📊 Total games extracted: 256
+✅ GLPK found solution with 256 games
+
+============================================================
+🎯 SOLVER RESULT:
+============================================================
+  Status: optimal
+  Solve Time: 1769ms (1.77s)
+  Games Scheduled: 256
+  Objective Value: 252.3
+  Constraints Satisfied: { totalGames: 256, weeksUsed: 17, teamsWithByes: 6 }
+
+✅ SUCCESS! Solver completed successfully!
+
+🔍 Validating solution...
+  ❌ Solution has errors:
+    - Team ravens has 16 games, expected 17
+    - Team browns has 16 games, expected 17
+    - Team bengals has 16 games, expected 17
+    - Team steelers has 16 games, expected 17
+    - Team texans has 16 games, expected 17
+    - Team colts has 16 games, expected 17
+    - Team jaguars has 15 games, expected 17
+    - Team titans has 15 games, expected 17
+    - Team bills has 15 games, expected 17
+    - Team dolphins has 15 games, expected 17
+    - Team jets has 16 games, expected 17
+    - Team patriots has 16 games, expected 17
+    - Team chiefs has 16 games, expected 17
+    - Team chargers has 16 games, expected 17
+    - Team broncos has 16 games, expected 17
+    - Team bears has 16 games, expected 17
+    - Team lions has 16 games, expected 17
+    - Team vikings has 16 games, expected 17
+    - Team falcons has 16 games, expected 17
+    - Team panthers has 16 games, expected 17
+    - Team saints has 16 games, expected 17
+    - Team cowboys has 15 games, expected 17
+    - Team eagles has 16 games, expected 17
+    - Team giants has 15 games, expected 17
+    - Team commanders has 16 games, expected 17
+    - Team 49ers has 16 games, expected 17
+    - Team ravens has 3 division games, expected 6
+    - Team browns has 3 division games, expected 6
+    - Team bengals has 3 division games, expected 6
+    - Team steelers has 3 division games, expected 6
+    - Team texans has 3 division games, expected 6
+    - Team colts has 3 division games, expected 6
+    - Team jaguars has 2 division games, expected 6
+    - Team titans has 2 division games, expected 6
+    - Team bills has 2 division games, expected 6
+    - Team dolphins has 2 division games, expected 6
+    - Team jets has 3 division games, expected 6
+    - Team patriots has 3 division games, expected 6
+    - Team chiefs has 3 division games, expected 6
+    - Team raiders has 3 division games, expected 6
+    - Team chargers has 3 division games, expected 6
+    - Team broncos has 3 division games, expected 6
+    - Team bears has 3 division games, expected 6
+    - Team lions has 3 division games, expected 6
+    - Team packers has 3 division games, expected 6
+    - Team vikings has 3 division games, expected 6
+    - Team falcons has 3 division games, expected 6
+    - Team panthers has 3 division games, expected 6
+    - Team saints has 3 division games, expected 6
+    - Team buccaneers has 3 division games, expected 6
+    - Team cowboys has 2 division games, expected 6
+    - Team eagles has 3 division games, expected 6
+    - Team giants has 2 division games, expected 6
+    - Team commanders has 3 division games, expected 6
+    - Team cardinals has 3 division games, expected 6
+    - Team rams has 3 division games, expected 6
+    - Team 49ers has 3 division games, expected 6
+    - Team seahawks has 3 division games, expected 6
+
+📅 Week Distribution:
+  Week  1:  0 games  (pre-scheduled)
+  Week  2: 15 games ███████████████
+  Week  3: 15 games ███████████████
+  Week  4: 15 games ███████████████
+  Week  5: 13 games █████████████
+  Week  6: 16 games ████████████████
+  Week  7: 16 games ████████████████
+  Week  8: 16 games ████████████████
+  Week  9: 16 games ████████████████
+  Week 10: 16 games ████████████████
+  Week 11: 16 games ████████████████
+  Week 12: 16 games ████████████████
+  Week 13: 13 games █████████████
+  Week 14: 13 games █████████████
+  Week 15: 15 games ███████████████
+  Week 16: 15 games ███████████████
+  Week 17: 15 games ███████████████
+  Week 18: 15 games ███████████████
+
+✅ Test completed!

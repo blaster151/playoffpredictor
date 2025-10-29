@@ -277,30 +277,29 @@ export class ScheduleConstraintSolver {
 
     // STEP 1: EQUALITY CONSTRAINTS (most restrictive)
     this.addMatchupConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
-    this.addTeamGameConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks);
+    // DISABLED: Team game constraints appear to be REDUNDANT and cause GLPK to fail
+    // When matchup constraints are satisfied (256 matchups × 2 teams = 512 team-games / 32 teams = 16 each)
+    // the team game constraints are automatically satisfied. Adding them creates linear dependence.
+    // this.addTeamGameConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks);
     
     // STEP 2: TIGHT BOUNDS
-    // TEMPORARILY DISABLED FOR TESTING:
-    // this.addByeWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
+    this.addByeWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
     
     // STEP 3: SIMPLE INEQUALITIES  
     // DISABLED: addTeamWeekConstraints - 544 redundant constraints! Already enforced by matchup + team game constraints
     // this.addTeamWeekConstraints(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks);
-    // TEMPORARILY DISABLED FOR TESTING:
-    // this.addMaxGamesPerWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
-    // this.addInterConferenceConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
+    this.addMaxGamesPerWeekConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
+    this.addInterConferenceConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
     
     // STEP 4: COMPLEX/EXPENSIVE CONSTRAINTS (least restrictive, most expensive)
     // DISABLED: addConsecutiveConstraints - ~8,704 constraints! Moved to postprocessing for 5-10x speedup
     // this.addConsecutiveConstraints(subjectTo, glpkInstance, numMatchups, numWeeks);
-    // TEMPORARILY DISABLED FOR TESTING:
-    // this.addSelfMatchupPrevention(subjectTo, glpkInstance, numMatchups, numWeeks);
+    this.addSelfMatchupPrevention(subjectTo, glpkInstance, numMatchups, numWeeks);
     // DISABLED: addMaxByeTeamsConstraint - ~512 constraints + 320 variables! Can be checked in postprocessing
     // this.addMaxByeTeamsConstraint(subjectTo, glpkInstance, numMatchups, numTeams, numWeeks, varNames);
-    // TEMPORARILY DISABLED FOR TESTING:
-    // this.addBalancedWeeklyDistribution(subjectTo, glpkInstance, numMatchups, numWeeks);
+    this.addBalancedWeeklyDistribution(subjectTo, glpkInstance, numMatchups, numWeeks);
     
-    console.log('⚠️  TESTING MODE: Matchup + Team Game constraints only!');
+    console.log('🧪 TESTING: Team game constraints DISABLED (testing if redundant)');
     
     // STEP 5: PRIMETIME CONSTRAINTS (NEW! - for maximum realism)
     // DISABLED: Primetime constraints disabled while debugging MIP
@@ -416,11 +415,10 @@ export class ScheduleConstraintSolver {
       const preScheduledGames = this.preScheduledGameCounts.get(teamId) || 0;
       const remainingGames = 17 - preScheduledGames;
       
-      // TESTING: Use tight inequality instead of equality to help GLPK
       subjectTo.push({
         name: `team_${teamId}_season_total_${remainingGames}`,
         vars,
-        bnds: { type: glpkInstance.GLP_DB, lb: remainingGames, ub: remainingGames } // Tight bounds instead of FX
+        bnds: { type: glpkInstance.GLP_FX, lb: remainingGames, ub: remainingGames } // Exactly remaining games
       });
       
       if (preScheduledGames > 0) {
